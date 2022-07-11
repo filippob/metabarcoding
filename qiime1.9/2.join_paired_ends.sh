@@ -11,7 +11,7 @@ input_folder="Analysis/qiime1.9/1.extract_barcode"
 output_dir="Analysis/qiime1.9/2.join_paired_ends"
 #sing_container="${project_home}/Qiime1.9.sif"
 sing_container="$HOME/software/qiime_docker:fischuu-qiime-1.9.1.sif"
-paramfile="Config/join.parameters"
+paramfile="Config/parameters/join.parameters"
 
 cd $currpath
 echo "project folder is $project_home"
@@ -27,8 +27,8 @@ fi
 
 ## using the Singularity container
 echo " - calling the singularity container for read joining"
-singularity run ${sing_container} multiple_join_paired_ends.py --input_dir=${input_folder} --output_dir=${output_dir} --include_input_dir_path --parameter_fp=$paramfile --read1_indicator=_R1 --read2_indicator=_R2
-chmod g+rxw -R ${output_dir}
+singularity run ${sing_container} multiple_join_paired_ends.py --input_dir=${project_home}/${input_folder} --output_dir=${project_home}/${output_dir} --include_input_dir_path --parameter_fp=${project_home}/$paramfile --read1_indicator=_R1 --read2_indicator=_R2
+chmod g+rxw -R ${project_home}/${output_dir}
 
 echo " - removing unassembled reads"
 cd $output_dir
@@ -37,7 +37,7 @@ cd $currpath
 
 ## clean output folder from potential barcode subfolders
 echo " - cleaning the output folder (barcodes subfolders)"
-rm -r ${output_dir}/*barcodes
+rm -r ${project_home}/${output_dir}/*barcodes
 
 echo "DONE!"
 
