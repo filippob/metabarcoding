@@ -30,8 +30,8 @@ cd ${outdir}/trimmed
 
 # remove singles reads from sickle
 
-if [ -f ./*singles.gz ]; then
-	rm ./*singles.gz
+if ls *singles.gz 1> /dev/null 2>&1; then
+	rm *singles.gz
 fi
 
 echo " - uncompressing trimmed fastq files "
@@ -39,7 +39,7 @@ gunzip *.fastq.gz
 
 ## SINGULARITY CONTAINER ##
 echo " - joining reads"
-singularity run $sing_container micca mergepairs -i ${outdir}/trimmed/*_1.fastq -o ${outdir}/micca_16S/WP1_assembled_16S.fastq -l 32 -d 8 -t 7
+singularity run $sing_container micca mergepairs -i ${outdir}/trimmed/*_1.fastq -o ${outdir}/micca_16S/WP1_assembled_16S.fastq -p _1 -e _2 -l 32 -d 8 -t 7
 
 # -l : minimum overlap between reads
 # -d : maximum mismatch in overlap region
