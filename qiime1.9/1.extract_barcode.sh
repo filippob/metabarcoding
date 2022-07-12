@@ -6,7 +6,7 @@
 
 ## setting up the environment
 currpath=$(pwd)
-project_home="$HOME/useful_microbiome_predipping"
+project_home="$HOME/useful_microbiome_chlorine"
 #data_folder="data/220225_M04028_0144_000000000-K6CMG"
 output_dir="Analysis/qiime1.9/1.extract_barcode"
 #sing_container="${project_home}/Qiime1.9.sif"
@@ -32,7 +32,7 @@ find . -name \*barcodes.fastq -type f -delete
 cd $currpath
 
 echo " - removing temprorary files"
-rm ${temp_folder}/*
+rm -r ${temp_folder}/*
 
 echo "DONE!"
 
