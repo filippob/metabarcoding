@@ -8,13 +8,14 @@
 
 ## folder paths
 currpath=$(pwd)
-datapath="/home/ngs/211108_M04028_0142_000000000-JWVRJ"
-outdir="useful_microbiome_predipping/Analysis/0.fastqc"
+datapath="/home/ngs/Macrogen/1.Rawdata/"
+outdir="useful_microbiome_chlorine/Analysis/0.fastqc"
 temp_folder="$HOME/temp"
 
 ## samples to select
-sample_start=1 #first sample to use (in the sequence)
-sample_end=60 #last sample to use (in the sequence)
+sample_start= #first sample to use (in the sequence)
+sample_end= #last sample to use (in the sequence)
+prefix="RAL"
 
 ## computing parameters
 core=8
@@ -34,11 +35,16 @@ if [ ! -d "${temp_folder}" ]; then
 fi
 
 echo " - copying relevant fastq files from data folder 1"
-for i in $(seq ${sample_start} ${sample_end});
-do
-	echo "file ${datapath}/${i}_"
-	rsync -av ${datapath}/${i}_*.fastq.gz ${temp_folder}
-done
+if [ ! -z ${sample_start} ]
+then
+	for i in $(seq ${sample_start} ${sample_end});
+	do
+		echo "file ${datapath}/${i}_"
+		rsync -av ${datapath}/${i}_*.fastq.gz ${temp_folder}
+	done
+else
+	rsync -av --exclude "${prefix}*" ${datapath}/*.fastq.gz ${temp_folder}
+fi
 
 ## FastQC
 echo " - running FastQC"
