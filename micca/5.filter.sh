@@ -1,5 +1,5 @@
 
-## setting the enviornmnent
+## setting the environment
 currpath=$(pwd)
 project_home="$HOME/useful_microbiome_chlorine"
 outdir="${project_home}/Analysis/micca"
