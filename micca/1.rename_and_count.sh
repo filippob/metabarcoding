@@ -6,7 +6,7 @@
 
 ## setting the environmnent
 currpath=$(pwd)
-project_home="$HOME/useful_microbiome_chlorine"
+project_home="$HOME/bontempo_pigs_rectum"
 sing_container="$HOME/software/qiime_docker:fischuu-qiime-1.9.1.sif"
 datapath="$HOME/temp"
 outdir="${project_home}/Analysis/micca/1.renamed"
@@ -20,12 +20,12 @@ if [ ! -d $outdir ]; then
 fi
 
 cd $datapath
-este=""
+este=".fastq.gz"
 
 for i in *.fastq.gz
 do
   sample=$(echo "$i" | cut -d "_" -f1 | cut -d "-" -f1,2,3)
-  read=$(echo "$i" | cut -d "_" -f2) ## this will change depending on the structure of sample names !!
+  read=$(echo "$i" | cut -d "_" -f4) ## this will change depending on the structure of sample names !!
   echo $sample
   cp $i ${outdir}/$sample"_"$read$este
   echo -e "$i\t-->\t$sample"_"$read$este" >> ${outdir}/log_renamer.txt
