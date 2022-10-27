@@ -2,14 +2,16 @@
 
 ## setting the enviornmnent
 currpath=$(pwd)
-project_home="$HOME/useful_microbiome_chlorine"
-outdir="${project_home}/Analysis/micca"
-sing_container="$HOME/software/micca.sif"
+project_home="$HOME/bontempo_pigs_rectum"
+analysis_dir="${project_home}/Analysis/micca"
+inpdir="${analysis_dir}/otu_table"
+outdir="${analysis_dir}/taxa_classification"
+sing_container="$HOME/software/micca_latest.sif"
 dbpath="$HOME/databases/SILVA_132_QIIME_release"
 core=8
 
-if [ ! -d "${outdir}/micca_16S" ]; then
-	mkdir $outdir/micca_16S
+if [ ! -d ${outdir} ]; then
+	mkdir $outdir
 fi
 
 
@@ -20,7 +22,7 @@ fi
 ## CLASSIFY WITH VSEARCH AND SILVA!
 # QIIME compatible SILVa DB should be downloaded
 echo " - classify with SILVA 132"
-$sing_container micca classify -m cons -i $outdir/micca_16S/otus.fasta  -o $outdir/micca_16S/taxa_SILVA.txt --ref $dbpath/rep_set/rep_set_16S_only/97/silva_132_97_16S.fna --ref-tax $dbpath/taxonomy/16S_only/97/taxonomy_7_levels.txt
+$sing_container micca classify -m cons -i $inpdir/otus.fasta  -o $outdir/taxa_SILVA.txt --ref $dbpath/rep_set/rep_set_16S_only/97/silva_132_97_16S.fna --ref-tax $dbpath/taxonomy/16S_only/97/taxonomy_7_levels.txt
 
 
 echo "DONE!"
