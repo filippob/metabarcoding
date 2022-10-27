@@ -2,19 +2,21 @@
 
 ## setting the enviornmnent
 currpath=$(pwd)
-project_home="$HOME/useful_microbiome_chlorine"
-outdir="${project_home}/Analysis/micca"
-sing_container="$HOME/software/micca.sif"
+project_home="$HOME/bontempo_pigs_rectum"
+analysis_dir="${project_home}/Analysis/micca"
+inpdir="${analysis_dir}/clean"
+outdir="${analysis_dir}/otu_table"
+sing_container="$HOME/software/micca_latest.sif"
 core=8
 
-if [ ! -d "${outdir}/micca_16S" ]; then
-	mkdir -p ${outdir}/micca_16S
+if [ ! -d ${outdir} ]; then
+	mkdir -p ${outdir}
 fi
 
 ## OTU picking
 # pick otu
 echo " - producing the OTU table"
-singularity run $sing_container micca otu -m denovo_unoise -i ${outdir}/micca_16S/WP1_assembled_16S.fasta -o ${outdir}/micca_16S/ -t 8 --rmchim
+singularity run $sing_container micca otu -m denovo_unoise -i ${inpdir}/assembled_16S_clean.fasta -o ${outdir}/ -t 8 --rmchim
 
 echo "DONE!!"
 
