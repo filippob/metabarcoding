@@ -31,11 +31,17 @@ fi
 
 cd "${outdir}/1.renamed"
 
+## remove file with sample/file names if already present (old files, we don't want to append new lines)
+#if [ -f "names.txt" ];
+#	rm names.txt
+#fi
+
 for i in *.fastq.gz
 do
-echo "$i" | cut -d "_" -f1 >> names.txt
-sed 'n; d' names.txt > names_single.txt
+	echo "$i" | cut -d "_" -f1 >> names.txt
 done
+
+sed 'n; d' names.txt > names_single.txt
 
 cp names_single.txt ${outdir}/trimmed
 cp names_single.txt ${outdir}/cutadapt
