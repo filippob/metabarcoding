@@ -1,6 +1,6 @@
 ## setting the enviornmnent
 currpath=$(pwd)
-project_home="$HOME/useful_microbiome_chlorine"
+project_home="$HOME/bontempo_pigs_rectum"
 outdir="${project_home}/Analysis/micca"
 core=8
 ## primer sequences (primers follow the adapters)
@@ -18,8 +18,8 @@ if [ ! -d "${outdir}/trimmed" ]; then
 	mkdir -p ${outdir}/trimmed
 fi
 
-if [ ! -d "${outdir}/micca_16S" ]; then
-	mkdir -p ${outdir}/micca_16S
+if [ ! -d "${outdir}/join" ]; then
+	mkdir -p ${outdir}/join
 fi
 
 if [ ! -d "${outdir}/quality_control" ]; then
@@ -39,7 +39,7 @@ done
 
 cp names_single.txt ${outdir}/trimmed
 cp names_single.txt ${outdir}/cutadapt
-cp names_single.txt ${outdir}/micca_16S
+cp names_single.txt ${outdir}/join
 
 # remove primers with cutadapt
 # Primers (Sequences from Pindo and FMACH)
@@ -53,7 +53,7 @@ while read file
 do
 	echo "Running cutadapt on file '${file}'"
 	## !!! watch out for the read indicator (e.g. R1/R2, or just 1/2) !!!
-	cutadapt -g Forward=${fwd_primer} -G Reverse=${rev_primer} --discard-untrimmed --pair-filter=any -o "${outdir}/cutadapt/${file}_1_cutadapt.fastq.gz" -p "${outdir}/cutadapt/${file}_2_cutadapt.fastq.gz" "${file}_1.fastq.gz" "${file}_2.fastq.gz" >> "${outdir}/quality_control/cutadapt_report.txt"  
+	cutadapt -g Forward=${fwd_primer} -G Reverse=${rev_primer} --discard-untrimmed --pair-filter=any -o "${outdir}/cutadapt/${file}_R1_cutadapt.fastq.gz" -p "${outdir}/cutadapt/${file}_R2_cutadapt.fastq.gz" "${file}_R1.fastq.gz" "${file}_R2.fastq.gz" >> "${outdir}/quality_control/cutadapt_report.txt"  
 
 done < names_single.txt
 

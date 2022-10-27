@@ -10,7 +10,7 @@
 currpath=$(pwd)
 datapath="/home/ngs/220713_M04028_0149_000000000-KFG5W/"
 outdir="$HOME/bontempo_pigs_rectum/Analysis/0.fastqc"
-temp_folder="$HOME/temp_microbiome"
+temp_folder="$HOME/temp"
 
 ## samples to select
 sample_start=15 #first sample to use (in the sequence)
@@ -81,14 +81,8 @@ else
 	multiqc .
 fi
 
-cp multiqc_report.html ../$outdir/
-cp -r multiqc_data ../$outdir/
-
-## clean the temporary folder (in case there were previous left overs)
-#echo " - cleaning the temp/temp_fastq folder"
-#cd ${temp_folder}
-#rm -rf *
-#cd $currpath
+cp multiqc_report.html $outdir/
+cp -r multiqc_data $outdir/
 
 echo "DONE!"
 
