@@ -2,12 +2,15 @@
 
 ## setting the enviornmnent
 currpath=$(pwd)
-project_home="$HOME/bontempo_pigs_rectum"
+project_home="$HOME/bontempo_pigs_caecum_gastroherb"
 analysis_dir="${project_home}/Analysis/micca"
 outdir="${analysis_dir}/join"
 inputdir="${analysis_dir}/trimmed"
 sing_container="$HOME/software/micca_latest.sif"
 core=8
+
+r1="R1"
+r2="R2"
 
 if [ ! -d "${outdir}" ]; then
 	mkdir -p ${outdir}
@@ -44,7 +47,7 @@ echo " - joining reads"
 ## -l: minimum overlap lenght (bps, default = 32)
 ## -d max n. of allowed mismatches in the overlap region (default = 8)
 ## -t: n. of threads to use (1 to 256)
-singularity run $sing_container micca mergepairs -i ${inputdir}/*_R1.fastq -o ${outdir}/assembled_16S.fastq -p _R1 -e _R2 -l 32 -d 8 -t 7
+singularity run $sing_container micca mergepairs -i ${inputdir}/*_${r1}.fastq -o ${outdir}/assembled_16S.fastq -p _${r1} -e _${r2} -l 32 -d 8 -t 7
 
 # -l : minimum overlap between reads
 # -d : maximum mismatch in overlap region

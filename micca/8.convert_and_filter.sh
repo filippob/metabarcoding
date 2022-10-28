@@ -11,7 +11,7 @@
 
 ## setting the enviornmnent
 currpath=$(pwd)
-project_home="$HOME/bontempo_pigs_rectum"
+project_home="$HOME/bontempo_pigs_caecum_gastroherb"
 analysis_dir="${project_home}/Analysis/micca"
 inpdir="${analysis_dir}/taxa_classification"
 outdir="${analysis_dir}/filtered_otu"
@@ -19,8 +19,8 @@ taxaf="taxa_SILVA.txt"
 otuf="${analysis_dir}/otu_table/otutable.txt"
 
 qiime_container="$HOME/software/qiime-1.9.1_latest.sif"
-ncounts=20 ## min n. of counts overall
-nsamples=4 ## min. n. of samples with non-zero counts
+ncounts=15 ## min n. of counts overall
+nsamples=2 ## min. n. of samples with non-zero counts
 
 if [ ! -d ${outdir} ]; then
         mkdir $outdir
