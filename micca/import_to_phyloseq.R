@@ -21,12 +21,12 @@ library("metagenomeSeq")
 ## PARAMETERS
 HOME <- Sys.getenv("HOME")
 repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
-prj_folder = file.path(HOME, "Documents/cremonesi/suini_bontempo")
-analysis_folder = "Analysis/micca"
+prj_folder = file.path(HOME, "Documents/cremonesi/suini_bontempo/pig_feces")
+analysis_folder = "Analysis"
 fname = "filtered_otu/otu_table_filtered.biom"
-conf_file = "Config/caecum_mapping.csv"
+conf_file = "Config/rectum_mapping.csv"
 min_tot_counts = 50 ## minimum number of total counts per sample to be included in the analysis
-outdir = file.path(analysis_folder)
+outdir = file.path(analysis_folder,"results")
 
 # source(file.path(prj_folder, repo, "r_scripts/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
 # source(file.path(prj_folder, repo, "r_scripts/phyloseq_transform.R")) ## from: https://github.com/vmikk/metagMisc/
@@ -56,7 +56,7 @@ print(head(taxa))
 ## metadata
 writeLines(" - reading the metadata")
 metadata = fread(file.path(prj_folder,conf_file))
-metadata = relocate(metadata, `sample-id`)
+metadata = metadata |> rename(`sample-id` = id) |> relocate(`sample-id`)
 names(metadata)[1] <- "sample-id"
 metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") 
 if(is.numeric(metadata$`sample-id`)) metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") # in case your sample-id are not only numeric, remove or comment if(is.numeric(metadata$`sample-id`))
@@ -71,6 +71,7 @@ otu_tax_sample = phyloseq(otu,taxa,samples)
 sample_data(otu_tax_sample)
 
 ## save phyloseq object
-dir.create(file.path(outdir, "results"), showWarnings = FALSE)
-fname = file.path(outdir, "results", "phyloseq.RData")
+dir.create(file.path(prj_folder, outdir), showWarnings = FALSE)
+fname = file.path(prj_folder, outdir, "phyloseq.RData")
 save(otu_tax_sample, file = fname)
+

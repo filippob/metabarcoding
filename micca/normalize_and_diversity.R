@@ -21,9 +21,9 @@ library("metagenomeSeq")
 
 ## PARAMETERS
 HOME <- Sys.getenv("HOME")
-prj_folder = file.path(HOME, "Documents/cremonesi/suini_bontempo")
-analysis_folder = "Analysis/micca"
-conf_file = "Config/caecum_mapping.csv"
+prj_folder = file.path(HOME, "Documents/cremonesi/suini_bontempo/pig_feces")
+analysis_folder = "Analysis"
+conf_file = "Config/rectum_mapping.csv"
 outdir = file.path(analysis_folder)
 
 repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
@@ -49,7 +49,7 @@ alpha = estimate_richness(otu_tax_sample, split = TRUE)
 alpha$"sample-id" = row.names(alpha)
 alpha = relocate(alpha, `sample-id`)
 fwrite(x = alpha, file = file.path(prj_folder, analysis_folder, "results", "alpha.csv"))
-p <- plot_richness(otu_tax_sample, x="treatment", color="treatment")
+p <- plot_richness(otu_tax_sample, x="timepoint", color="treatment")
 ggsave(filename = file.path(prj_folder, analysis_folder, "results","figures", "alpha_plot.png"), plot = p, device = "png", width = 11, height = 7)
 
 ## Preprocessing: e.g. filtering
@@ -99,7 +99,7 @@ print(dist_methods)
 writeLines(" - calculate Bray-Curtis distances")
 distances = distance(otu_tax_sample_norm, method="bray", type = "samples")
 iMDS  <- ordinate(otu_tax_sample_norm, "MDS", distance=distances)
-p <- plot_ordination(otu_tax_sample_norm, iMDS, color="treatment", shape="treatment")
+p <- plot_ordination(otu_tax_sample_norm, iMDS, color="treatment", shape="timepoint")
 ggsave(filename = file.path(prj_folder, analysis_folder, "results", "figures","mds_plot_bray_curtis.png"), plot = p, device = "png")
 
 writeLines(" - write out distance matrix")
@@ -111,7 +111,7 @@ fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "results", "bray_cu
 writeLines(" - calculate Euclidean distances")
 distances = distance(otu_tax_sample_norm, method="euclidean", type = "samples")
 iMDS  <- ordinate(otu_tax_sample_norm, "MDS", distance=distances)
-p <- plot_ordination(otu_tax_sample_norm, iMDS, color="treatment", shape="treatment")
+p <- plot_ordination(otu_tax_sample_norm, iMDS, color="treatment", shape="timepoint")
 ggsave(filename = file.path(prj_folder, analysis_folder, "results","figures", "mds_plot_euclidean.png"), plot = p, device = "png")
 
 writeLines(" - write out euclidean distance matrix")
@@ -129,7 +129,7 @@ plot_tree(otu_norm_tree, color="Phylum", shape="treatment", size="abundance")
 writeLines(" - calculate Unifrac distances")
 distances = distance(otu_norm_tree, method="unifrac", type = "samples")
 iMDS  <- ordinate(otu_norm_tree, "MDS", distance=distances)
-p <- plot_ordination(biom1, iMDS, color="treatment", shape="treatment")
+p <- plot_ordination(biom1, iMDS, color="treatment", shape="timepoint")
 ggsave(filename = file.path(prj_folder, analysis_folder, "results", "figures","mds_plot_unifrac.png"), plot = p, device = "png")
 
 writeLines(" - write out Unifrac distance matrix")
@@ -141,7 +141,7 @@ fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "results", "unifrac
 writeLines(" - calculate weighted Unifrac distances")
 distances = distance(otu_norm_tree, method="wunifrac", type = "samples")
 iMDS  <- ordinate(otu_norm_tree, "MDS", distance=distances)
-p <- plot_ordination(biom1, iMDS, color="treatment", shape="treatment")
+p <- plot_ordination(biom1, iMDS, color="treatment", shape="timepoint")
 ggsave(filename = file.path(prj_folder, analysis_folder, "results", "figures","mds_plot_weighted_unifrac.png"), plot = p, device = "png")
 
 writeLines(" - write out weighted Unifrac distance matrix")
