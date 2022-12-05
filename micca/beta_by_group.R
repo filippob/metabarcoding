@@ -11,17 +11,20 @@ library("metagenomeSeq")
 
 ## PARAMETERS
 HOME <- Sys.getenv("HOME")
-prj_folder = file.path(HOME, "Documents/USEFUL")
-analysis_folder = "Analysis/microbiome_chlorine/micca"
-conf_file = "Config/mapping_file_chlorine.csv"
-outdir = file.path(analysis_folder)
+repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
+prj_folder = file.path(HOME, "Documents/cremonesi/suini_bontempo")
+analysis_folder = "Analysis/micca"
+fname = "filtered_otu/otu_table_filtered.biom"
+conf_file = "Config/caecum_mapping.csv"
+outdir = file.path(analysis_folder,"results")
+nfactors = 1 ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
 
-repo = file.path(prj_folder, "metabarcoding")
 source(file.path(repo, "support_functions/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
 source(file.path(repo, "support_functions/phyloseq_transform.R")) ## from: https://github.com/vmikk/metagMisc/
 
 ## loading data previously imported in phyloseq
-load("Analysis/microbiome_chlorine/micca/otu_table/phyloseq.RData")
+fname = file.path(prj_folder, analysis_folder, "results/phyloseq.RData")
+load(fname)
 
 ## Preprocessing: e.g. filtering
 ## making normalization folder
@@ -30,7 +33,7 @@ if(!file.exists(file.path(prj_folder, outdir))) dir.create(file.path(prj_folder,
 writeLines(" - CSS normalization")
 otu_tax_sample_norm = phyloseq_transform_css(otu_tax_sample, norm = TRUE, log = FALSE)
 # sample_data(otu_tax_sample_norm)
-tipos = unique(sample_data(otu_tax_sample_norm)$type)
+tipos = unique(sample_data(otu_tax_sample_norm)$project)
 
 ###############
 ## distances ##
@@ -41,7 +44,7 @@ writeLines(" - available distance metrics")
 for (k in tipos) {
   
   print(paste(" - calculate Bray-Curtis distances for ", k))
-  temp = subset_samples(otu_tax_sample_norm, type == k)
+  temp = subset_samples(otu_tax_sample_norm, project == k)
   distances = distance(temp, method="bray", type = "samples")
   iMDS  <- ordinate(temp, "MDS", distance=distances)
   p <- plot_ordination(temp, iMDS, color="treatment")
@@ -59,29 +62,46 @@ distances = distance(otu_tax_sample_norm, method="bray", type = "samples")
 dd = dist2list(distances, tri = FALSE)
 dx = spread(dd, key = "col", value = "value")
 
-temp = dplyr::select(metadata, c(`sample-id`,type,treatment))
+temp = dplyr::select(metadata, c(`sample-id`,treatment))
 dx <- dx %>% inner_join(temp, by = c("row" = "sample-id"))
 
 temp = select(dx,-row)
-nvars = 2
-matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
 
 print("Permanova on the whole dataset: comparison between types, treatmetns and type x treatment:")
 source("~/Documents/cremonesi/rumine_anafi/parwise.adonis.r")
-obj <- adonis2(matx ~ dx$type*dx$treatment, permutations = 1000)
-print(kable(obj))
 
-tipos = unique(dx$type)
-for (tt in tipos) {
+if (nfactors > 1) {
   
-  print(tt)
-  vec = (dx$type == tt)
-  temp2 <- dx[vec,c(TRUE,vec,TRUE,TRUE)]
-  temp1 <- matx[vec,vec]
+  nvars = nfactors
+  matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
   
-  print(paste("Permanova on the", tt, "subset: comparison between treatments:"))
-  obj <- adonis2(temp1 ~ temp2$treatment, permutations = 1000)
+  obj <- adonis2(matx ~ dx$type*dx$treatment, permutations = 1000)
+  print(kable(obj))
+  
+  tipos = unique(dx$type)
+  for (tt in tipos) {
+    
+    print(tt)
+    vec = (dx$type == tt)
+    temp2 <- dx[vec,c(TRUE,vec,TRUE,TRUE)]
+    temp1 <- matx[vec,vec]
+    
+    print(paste("Permanova on the", tt, "subset: comparison between treatments:"))
+    obj <- adonis2(temp1 ~ temp2$treatment, permutations = 1000)
+    print(kable(obj))
+  }
+} else {
+  
+  nvars = nfactors
+  matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
+  
+  obj <- adonis2(matx ~ dx$treatment, permutations = 1000)
+  print(kable(obj))
+
+  obj <- adonis2(matx ~ dx$treatment, permutations = 1000)
   print(kable(obj))
 }
+
+
 
 print("DONE!")
