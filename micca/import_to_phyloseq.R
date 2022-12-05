@@ -6,6 +6,11 @@
 ## where R packages can more easily be installed/updated
 #############################################################################
 
+# if (!require("BiocManager", quietly = TRUE))
+#   install.packages("BiocManager")
+
+# BiocManager::install("metagenomeSeq")
+
 ## SET UP
 library("ape")
 library("phyloseq")
@@ -15,14 +20,14 @@ library("metagenomeSeq")
 
 ## PARAMETERS
 HOME <- Sys.getenv("HOME")
-prj_folder = file.path(HOME, "Documents/USEFUL")
-analysis_folder = "Analysis/microbiome_chlorine/micca"
-fname = "otu_table/otu_table_filtered.biom"
-conf_file = "Config/mapping_file_chlorine.csv"
-min_tot_counts = 100 ## minimum number of total counts per sample to be included in the analysis
+repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
+prj_folder = file.path(HOME, "Documents/cremonesi/suini_bontempo")
+analysis_folder = "Analysis/micca"
+fname = "filtered_otu/otu_table_filtered.biom"
+conf_file = "Config/caecum_mapping.csv"
+min_tot_counts = 50 ## minimum number of total counts per sample to be included in the analysis
 outdir = file.path(analysis_folder)
 
-repo = file.path(prj_folder, "metabarcoding")
 # source(file.path(prj_folder, repo, "r_scripts/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
 # source(file.path(prj_folder, repo, "r_scripts/phyloseq_transform.R")) ## from: https://github.com/vmikk/metagMisc/
 source(file.path(repo, "support_functions/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
@@ -66,4 +71,6 @@ otu_tax_sample = phyloseq(otu,taxa,samples)
 sample_data(otu_tax_sample)
 
 ## save phyloseq object
-save(otu_tax_sample, file = "Analysis/microbiome_chlorine/micca/otu_table/phyloseq.RData")
+dir.create(file.path(outdir, "results"), showWarnings = FALSE)
+fname = file.path(outdir, "results", "phyloseq.RData")
+save(otu_tax_sample, file = fname)
