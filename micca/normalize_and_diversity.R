@@ -21,10 +21,13 @@ library("metagenomeSeq")
 
 ## PARAMETERS
 HOME <- Sys.getenv("HOME")
-prj_folder = file.path(HOME, "Documents/cremonesi/suini_bontempo/pig_feces")
-analysis_folder = "Analysis"
-conf_file = "Config/rectum_mapping.csv"
+prj_folder = file.path(HOME, "Documents/FARM-INN/grana_genotypes")
+analysis_folder = "Analysis/micca"
+conf_file = "Config/mapping_file.csv"
 outdir = file.path(analysis_folder)
+
+grouping_variable1 = "season"
+grouping_variable2 = "genotype"
 
 repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
 source(file.path(repo, "support_functions/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
@@ -49,7 +52,7 @@ alpha = estimate_richness(otu_tax_sample, split = TRUE)
 alpha$"sample-id" = row.names(alpha)
 alpha = relocate(alpha, `sample-id`)
 fwrite(x = alpha, file = file.path(prj_folder, analysis_folder, "results", "alpha.csv"))
-p <- plot_richness(otu_tax_sample, x="timepoint", color="treatment")
+p <- plot_richness(otu_tax_sample, x=grouping_variable2, color=grouping_variable1)
 ggsave(filename = file.path(prj_folder, analysis_folder, "results","figures", "alpha_plot.png"), plot = p, device = "png", width = 11, height = 7)
 
 ## Preprocessing: e.g. filtering
@@ -81,10 +84,10 @@ random_tree = rtree(ntaxa((otu_rel_filtered)), rooted=TRUE, tip.label=taxa_names
 plot(random_tree)
 
 biom1 = merge_phyloseq(otu_rel_filtered, random_tree)
-plot_tree(biom1, color="treatment", label.tips="taxa_names", ladderize="left", plot.margin=0.3)
+plot_tree(biom1, color=grouping_variable1, label.tips="taxa_names", ladderize="left", plot.margin=0.3)
 
 png(filename = file.path(prj_folder, analysis_folder, "results","figures", "genus_tree.png"), width = 1000, height = 800)
-plot_tree(biom1, color="Genus", shape="treatment", size="abundance")
+plot_tree(biom1, color="Genus", shape=grouping_variable1, size="abundance")
 dev.off()
 
 ###############
@@ -99,7 +102,7 @@ print(dist_methods)
 writeLines(" - calculate Bray-Curtis distances")
 distances = distance(otu_tax_sample_norm, method="bray", type = "samples")
 iMDS  <- ordinate(otu_tax_sample_norm, "MDS", distance=distances)
-p <- plot_ordination(otu_tax_sample_norm, iMDS, color="treatment", shape="timepoint")
+p <- plot_ordination(otu_tax_sample_norm, iMDS, color=grouping_variable1, shape=grouping_variable2)
 ggsave(filename = file.path(prj_folder, analysis_folder, "results", "figures","mds_plot_bray_curtis.png"), plot = p, device = "png")
 
 writeLines(" - write out distance matrix")
@@ -111,7 +114,7 @@ fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "results", "bray_cu
 writeLines(" - calculate Euclidean distances")
 distances = distance(otu_tax_sample_norm, method="euclidean", type = "samples")
 iMDS  <- ordinate(otu_tax_sample_norm, "MDS", distance=distances)
-p <- plot_ordination(otu_tax_sample_norm, iMDS, color="treatment", shape="timepoint")
+p <- plot_ordination(otu_tax_sample_norm, iMDS, color=grouping_variable1, shape=grouping_variable2)
 ggsave(filename = file.path(prj_folder, analysis_folder, "results","figures", "mds_plot_euclidean.png"), plot = p, device = "png")
 
 writeLines(" - write out euclidean distance matrix")
@@ -123,13 +126,13 @@ fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "results", "euclide
 random_tree = rtree(ntaxa((otu_tax_sample_norm)), rooted=TRUE, tip.label=taxa_names(otu_tax_sample_norm))
 otu_norm_tree = merge_phyloseq(otu_tax_sample_norm, random_tree)
 # plot_tree(otu_norm_tree, color="treatment", label.tips="taxa_names", ladderize="left", plot.margin=0.3)
-plot_tree(otu_norm_tree, color="Phylum", shape="treatment", size="abundance")
+plot_tree(otu_norm_tree, color="Phylum", shape=grouping_variable1, size="abundance")
 
 ## unifrac
 writeLines(" - calculate Unifrac distances")
 distances = distance(otu_norm_tree, method="unifrac", type = "samples")
 iMDS  <- ordinate(otu_norm_tree, "MDS", distance=distances)
-p <- plot_ordination(biom1, iMDS, color="treatment", shape="timepoint")
+p <- plot_ordination(biom1, iMDS, color=grouping_variable1, shape=grouping_variable2)
 ggsave(filename = file.path(prj_folder, analysis_folder, "results", "figures","mds_plot_unifrac.png"), plot = p, device = "png")
 
 writeLines(" - write out Unifrac distance matrix")
@@ -141,7 +144,7 @@ fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "results", "unifrac
 writeLines(" - calculate weighted Unifrac distances")
 distances = distance(otu_norm_tree, method="wunifrac", type = "samples")
 iMDS  <- ordinate(otu_norm_tree, "MDS", distance=distances)
-p <- plot_ordination(biom1, iMDS, color="treatment", shape="timepoint")
+p <- plot_ordination(biom1, iMDS, color=grouping_variable1, shape=grouping_variable2)
 ggsave(filename = file.path(prj_folder, analysis_folder, "results", "figures","mds_plot_weighted_unifrac.png"), plot = p, device = "png")
 
 writeLines(" - write out weighted Unifrac distance matrix")
