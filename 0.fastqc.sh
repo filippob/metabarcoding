@@ -13,6 +13,7 @@ outdir="$HOME/bontempo_pigs_rectum/Analysis/0.fastqc"
 temp_folder="$HOME/temp"
 
 ## samples to select
+## if start/end is not defined, prefix is used to exclude files when copying
 sample_start=15 #first sample to use (in the sequence)
 sample_end=104 #last sample to use (in the sequence)
 prefix=""
@@ -32,13 +33,21 @@ condaenv="mycobiota"
 echo $HOME
 echo $currpath
 
-## copying files of interest to process
+## create the temporary folder where fastq files are place and processed
 echo " - creating temporary folder for sequence data ${temp_folder}"
 if [ ! -d "${temp_folder}" ]; then
         mkdir -p ${temp_folder}
 	chmod g+rwx ${temp_folder}
 fi
 
+## clean the temporary folder (in case there were previous left overs)
+if [ -d "${temp_folder}" ]; then
+        echo " - cleaning the temp/temp_fastq folder"
+        cd ${temp_folder}
+        rm *
+fi
+
+## copying files of interest to process
 echo " - copying relevant fastq files from data folder 1"
 if [ ! -z ${sample_start} ]
 then
@@ -71,6 +80,9 @@ cd ${temp_folder}
 
 if [ $singularity == 1 ]; then
 	echo "running MULTIQC through singularity"
+	## DEPENDING ON THE VERSION OF THE CONTAINER YOU MAY USE ONE OF THE FOLLOWING SYNTAX LINES
+        #singularity run $multiqcsing multiqc .
+        #singularity run $multiqcsing .
 	$multiqcsing multiqc .
 else
 	echo " - activate the conda env and run multiqc"
