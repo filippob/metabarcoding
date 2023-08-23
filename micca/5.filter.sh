@@ -1,7 +1,7 @@
 
 ## setting the environment
 currpath=$(pwd)
-project_home="$HOME/bontempo_pigs_rectum"
+project_home="$HOME/suini_insetti"
 analysis_dir="${project_home}/Analysis/micca"
 inpdir="${analysis_dir}/join"
 outdir="${analysis_dir}/clean"
@@ -14,7 +14,8 @@ fi
 
 # Remove N from assembly
 echo " - filtering reads"
-singularity run $sing_container micca filter -i ${inpdir}/assembled_16S.fastq -o ${outdir}/assembled_16S_clean.fasta --maxns 0
+## max N's; max error rate (default: 1 error / 100 bps)
+singularity run $sing_container micca filter -i ${inpdir}/assembled_16S.fastq -o ${outdir}/assembled_16S_clean.fasta --maxns 0 --maxeerate 1
 
 # count
 echo " - countig reads after filtering"
