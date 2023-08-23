@@ -21,13 +21,14 @@ library("metagenomeSeq")
 
 ## PARAMETERS
 HOME <- Sys.getenv("HOME")
-prj_folder = file.path(HOME, "Documents/FARM-INN/grana_genotypes")
+prj_folder = file.path(HOME, "Documents/cremonesi/suini_insetti")
 analysis_folder = "Analysis/micca"
-conf_file = "Config/mapping_file.csv"
+# conf_file = "Config/mapping_file.csv"
+conf_file = "mapping_file.csv"
 outdir = file.path(analysis_folder)
 
-grouping_variable1 = "season"
-grouping_variable2 = "genotype"
+grouping_variable1 = "timepoint"
+grouping_variable2 = "treatment"
 
 repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
 source(file.path(repo, "support_functions/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/

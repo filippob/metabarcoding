@@ -21,11 +21,11 @@ library("metagenomeSeq")
 ## PARAMETERS
 HOME <- Sys.getenv("HOME")
 repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
-prj_folder = file.path(HOME, "Documents/cremonesi/suini_bontempo/pig_feces")
-analysis_folder = "Analysis"
+prj_folder = file.path(HOME, "Documents/cremonesi/suini_insetti")
+analysis_folder = "Analysis/micca"
 fname = "filtered_otu/otu_table_filtered.biom"
-conf_file = "Config/rectum_mapping.csv"
-min_tot_counts = 50 ## minimum number of total counts per sample to be included in the analysis
+conf_file = "mapping_file.csv"
+min_tot_counts = 10 ## minimum number of total counts per sample to be included in the analysis
 outdir = file.path(analysis_folder,"results")
 
 # source(file.path(prj_folder, repo, "r_scripts/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
@@ -50,7 +50,8 @@ colnames(otu) <- paste("sample-",colnames(otu),sep="")
 print(head(otu))
 
 writeLines(" - change the names of taxonomic levels to Kngdom, Class etc.")
-colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus","Species") #if number does not fit, add "" as blank spaces to solve the problem
+# colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus","Species") #if number does not fit, add "" as blank spaces to solve the problem
+colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus") #from RDP
 print(head(taxa))
 
 ## metadata
