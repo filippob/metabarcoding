@@ -13,18 +13,22 @@ library("metagenomeSeq")
 ## PARAMETERS
 HOME <- Sys.getenv("HOME")
 repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
-prj_folder = file.path(HOME, "Documents/cremonesi/suini_bontempo/pig_feces")
-analysis_folder = "Analysis/results"
+prj_folder = file.path(HOME, "Documents/leguplus")
+analysis_folder = "Analysis/results_fagioli"
 otu_norm_fname = file.path(prj_folder, analysis_folder, "otu_norm_CSS.csv")
-conf_file = "Config/zinco_poroso_rectum.csv"
+conf_file = "mapping_file.csv"
 outdir = file.path(prj_folder,analysis_folder)
-suffix = "zinc_feces"
+suffix = "fagioli"
+
+## treatment levels as in the metadata file
+level1 = "Controllo"
+level2 = "Fagioli"
 
 ## read metadata
 metadata = fread(file.path(prj_folder, conf_file))
-metadata <- metadata |> select(`progressivo MISEQ`, `GRUPPO sperimentale`, TIMEPOINT, Progetto, tipologia)
-metadata <- rename(metadata, `sample-id` = `progressivo MISEQ`, treatment = `GRUPPO sperimentale`, timepoint = TIMEPOINT) |>
-  mutate(`sample-id` = as.character(`sample-id`))
+# metadata <- metadata |> select(`progressivo MISEQ`, `GRUPPO sperimentale`, TIMEPOINT, Progetto, tipologia)
+# metadata <- rename(metadata, `sample-id` = `progressivo MISEQ`, treatment = `GRUPPO sperimentale`, timepoint = TIMEPOINT)
+metadata <- metadata |> mutate(`sample-id` = as.character(`sample-id`))
 # metadata <- metadata |> rename(`sample-id` = id)
 # metadata <- mutate(metadata, id = as.character(id))
 metadata = select(metadata, c(`sample-id`, timepoint, treatment))
@@ -35,7 +39,7 @@ otus = fread(otu_norm_fname)
 otus <- filter(otus, Phylum != "")
 
 # M <- otus[,-c("tax_id", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")]
-M <- otus[,-c("tax_id", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")]
+M <- otus[,-c("tax_id", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus")]
 ## !! remember: due to how matrices are stored internally in R, M/colSums(M) won't give the expected results --> use sweep instead !!
 M <- sweep(M, MARGIN=2, FUN="/", STATS=colSums(M))
 M <- cbind.data.frame("Phylum"=otus$Phylum, M)
@@ -56,7 +60,7 @@ D <- mO |> group_by(treatment, timepoint) |>
   summarise(avg = sum(counts)/unique(tot))
 
   
-my_palette = get_palette(c("lightblue","#00AFBB", "#E7B800", "#FC4E07","darkred","darkgrey","purple"), length(unique(D$Phylum)))
+my_palette = get_palette(c("#00AFBB", "pink", "#FC4E07", "green", "purple", "#E7B800", "darkgrey", "salmon", "blue"), length(unique(D$Phylum)))
 
 plot_title = paste("phylum", suffix)
 
@@ -89,7 +93,7 @@ fwrite(x = D, file = fname, sep = ",")
 ## taxonomic levels abundances
 otus = fread(otu_norm_fname)
 temp <- otus |>
-  select(-c(tax_id,Kingdom, Phylum, Species)) |>
+  select(-c(tax_id,Kingdom, Phylum)) |>
   gather(key = "sample", value = "counts", -c("Class","Order","Family","Genus")) |>
   gather(key = "level", value = "taxon", -c("sample","counts")) |>
   filter(taxon != "")
@@ -142,18 +146,18 @@ otus <- filter(otus, Genus != "")
 otus <- select(otus, -c(tax_id,Kingdom, Phylum, Class, Order, Family))
 
 mO <- otus |>
-  gather(key = "sample", value = "counts", -c(Genus, Species))
+  gather(key = "sample", value = "counts", -c(Genus))
 
 ## We consider that the species level is not usable (virtually all are uncultered or unidentified)
-table(mO$Species)
-mO$Species <- NULL
+# table(mO$Species)
+# mO$Species <- NULL
 
 temp = select(metadata, c(sample, treatment, timepoint))
 mO <- mO %>% inner_join(temp, by = c("sample" = "sample"))
 
 ## model y = mu + type + treatment + e
-mO$treatment <- factor(mO$treatment, levels = c("CTR", "T1", "T2", "T3"))
-# mO$treatment <- factor(mO$treatment, levels = c("SOIA", "INSETTI"))
+# mO$treatment <- factor(mO$treatment, levels = c("CTR", "T1", "T2", "T3"))
+mO$treatment <- factor(mO$treatment, levels = c("Controllo", "Fagioli"))
 
 dd <- mO |>
   group_by(Genus, treatment, timepoint) |>
@@ -174,10 +178,16 @@ genus_stats <- mO %>%
 #   mutate(diff = INSETTI-SOIA) |>
 #   select(-c(SOIA,INSETTI))
 
+# temp <- genus_stats |> select(-std) |> spread(key = "treatment", value = avg) |>
+#   mutate(diffT1 = T1-CTR, diffT2 = T2-CTR, diffT3 = T3-CTR) |>
+#   select(-c(CTR,T1,T2,T3)) |>
+#   rename(T1 = diffT1, T2 = diffT2, T3 = diffT3) |>
+#   gather(key = "treatment", value = "difference_vs_ctrl", -c(Genus,timepoint))
+
 temp <- genus_stats |> select(-std) |> spread(key = "treatment", value = avg) |>
-  mutate(diffT1 = T1-CTR, diffT2 = T2-CTR, diffT3 = T3-CTR) |>
-  select(-c(CTR,T1,T2,T3)) |>
-  rename(T1 = diffT1, T2 = diffT2, T3 = diffT3) |>
+  mutate(diff = .data[[level2]]-.data[[level1]]) |>
+  select(-all_of(c(level1, level2))) |>
+  rename(!!level2 := diff) |>
   gather(key = "treatment", value = "difference_vs_ctrl", -c(Genus,timepoint))
 
 genus_stats <- temp |>
