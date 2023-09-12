@@ -21,12 +21,13 @@ library("metagenomeSeq")
 ## PARAMETERS
 HOME <- Sys.getenv("HOME")
 repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
-prj_folder = file.path(HOME, "Documents/cremonesi/suini_insetti")
-analysis_folder = "Analysis/micca"
+prj_folder = file.path(HOME, "Documents/leguplus")
+analysis_folder = "Analysis"
 fname = "filtered_otu/otu_table_filtered.biom"
 conf_file = "mapping_file.csv"
-min_tot_counts = 10 ## minimum number of total counts per sample to be included in the analysis
-outdir = file.path(analysis_folder,"results")
+min_tot_counts = 20 ## minimum number of total counts per sample to be included in the analysis
+outdir = file.path(analysis_folder,"results_lupini")
+subset_group = "LUPINI" ## subset data by sample variable (e.g. experiment, group, sex, etc.)
 
 # source(file.path(prj_folder, repo, "r_scripts/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
 # source(file.path(prj_folder, repo, "r_scripts/phyloseq_transform.R")) ## from: https://github.com/vmikk/metagMisc/
@@ -57,19 +58,30 @@ print(head(taxa))
 ## metadata
 writeLines(" - reading the metadata")
 metadata = fread(file.path(prj_folder,conf_file))
-metadata = metadata |> rename(`sample-id` = id) |> relocate(`sample-id`)
+#metadata = metadata |> rename(`sample-id` = id) |> relocate(`sample-id`)
 names(metadata)[1] <- "sample-id"
 metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") 
 if(is.numeric(metadata$`sample-id`)) metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") # in case your sample-id are not only numeric, remove or comment if(is.numeric(metadata$`sample-id`))
 metadata <- as.data.frame(metadata)
 row.names(metadata) <- metadata$`sample-id`
 metadata$`sample-id` <- NULL
+metadata$timepoint = as.factor(metadata$timepoint)
 
 ## read into phyloseq
 writeLines(" - add metadata to the phyloseq object")
 samples = sample_data(metadata)
 otu_tax_sample = phyloseq(otu,taxa,samples)
-sample_data(otu_tax_sample)
+sample_data(otu_tax_sample) |> head()
+
+## subset data if needed
+if (!(is.null(subset_group) | subset_group == "")) {
+  
+  print(paste("subsetting data by", subset_group))
+  otu_tax_sample <- subset_samples(otu_tax_sample, experiment == subset_group)
+  print("n. of samples left after subsetting")
+  sample_data(otu_tax_sample) |> nrow() |> print()
+}
+  
 
 ## save phyloseq object
 dir.create(file.path(prj_folder, outdir), showWarnings = FALSE)
