@@ -21,8 +21,8 @@ library("metagenomeSeq")
 
 ## PARAMETERS
 HOME <- Sys.getenv("HOME")
-prj_folder = file.path(HOME, "Documents/cremonesi/suini_insetti")
-analysis_folder = "Analysis/micca"
+prj_folder = file.path(HOME, "Documents/leguplus")
+analysis_folder = "Analysis/results_lupini"
 # conf_file = "Config/mapping_file.csv"
 conf_file = "mapping_file.csv"
 outdir = file.path(analysis_folder)
@@ -35,14 +35,14 @@ source(file.path(repo, "support_functions/dist2list.R")) ## from: https://github
 source(file.path(repo, "support_functions/phyloseq_transform.R")) ## from: https://github.com/vmikk/metagMisc/
 
 ## loading data previously imported in phyloseq
-fname = file.path(prj_folder, analysis_folder, "results/phyloseq.RData")
+fname = file.path(prj_folder, analysis_folder, "phyloseq.RData")
 load(fname)
 
 ## making results folder
-if(!file.exists(file.path(prj_folder, analysis_folder, "results"))) dir.create(file.path(prj_folder, analysis_folder, "results"), showWarnings = FALSE)
+# if(!file.exists(file.path(prj_folder, analysis_folder, "results"))) dir.create(file.path(prj_folder, analysis_folder, "results"), showWarnings = FALSE)
 
 ## making figures folder
-if(!file.exists(file.path(prj_folder, analysis_folder, "results", "figures"))) dir.create(file.path(prj_folder, analysis_folder, "results", "figures"), showWarnings = FALSE)
+if(!file.exists(file.path(prj_folder, analysis_folder, "figures"))) dir.create(file.path(prj_folder, analysis_folder, "figures"), showWarnings = FALSE)
 
 ## Alpha diversity
 ## alpha diversity is calculated on the original count data, not normalised 
@@ -52,9 +52,9 @@ writeLines(" - calculate alpha diversity indices")
 alpha = estimate_richness(otu_tax_sample, split = TRUE)
 alpha$"sample-id" = row.names(alpha)
 alpha = relocate(alpha, `sample-id`)
-fwrite(x = alpha, file = file.path(prj_folder, analysis_folder, "results", "alpha.csv"))
+fwrite(x = alpha, file = file.path(prj_folder, analysis_folder, "alpha.csv"))
 p <- plot_richness(otu_tax_sample, x=grouping_variable2, color=grouping_variable1)
-ggsave(filename = file.path(prj_folder, analysis_folder, "results","figures", "alpha_plot.png"), plot = p, device = "png", width = 11, height = 7)
+ggsave(filename = file.path(prj_folder, analysis_folder, "figures", "alpha_plot.png"), plot = p, device = "png", width = 11, height = 7)
 
 ## Preprocessing: e.g. filtering
 ## making normalization folder
@@ -73,21 +73,21 @@ taxonomy <- relocate(taxonomy, tax_id)
 otu_css_norm = otu_css_norm %>% inner_join(taxonomy, by = "tax_id")
 
 writeLines(" - writing out the CSS normalized OTU table")
-fwrite(x = otu_css_norm, file = file.path(prj_folder, outdir, "results", "otu_norm_CSS.csv"))
+fwrite(x = otu_css_norm, file = file.path(prj_folder, outdir, "otu_norm_CSS.csv"))
 
 ## relative abundances
 otu_relative = transform_sample_counts(otu_tax_sample, function(x) x/sum(x) )
 otu_rel_filtered = filter_taxa(otu_relative, function(x) mean(x) > 5e-3, TRUE)
 nrow(otu_table(otu_rel_filtered))
 
-writeLines(" - additionas plots")
+writeLines(" - additional plots")
 random_tree = rtree(ntaxa((otu_rel_filtered)), rooted=TRUE, tip.label=taxa_names(otu_rel_filtered))
 plot(random_tree)
 
 biom1 = merge_phyloseq(otu_rel_filtered, random_tree)
 plot_tree(biom1, color=grouping_variable1, label.tips="taxa_names", ladderize="left", plot.margin=0.3)
 
-png(filename = file.path(prj_folder, analysis_folder, "results","figures", "genus_tree.png"), width = 1000, height = 800)
+png(filename = file.path(prj_folder, analysis_folder, "figures", "genus_tree.png"), width = 1000, height = 800)
 plot_tree(biom1, color="Genus", shape=grouping_variable1, size="abundance")
 dev.off()
 
@@ -104,24 +104,24 @@ writeLines(" - calculate Bray-Curtis distances")
 distances = distance(otu_tax_sample_norm, method="bray", type = "samples")
 iMDS  <- ordinate(otu_tax_sample_norm, "MDS", distance=distances)
 p <- plot_ordination(otu_tax_sample_norm, iMDS, color=grouping_variable1, shape=grouping_variable2)
-ggsave(filename = file.path(prj_folder, analysis_folder, "results", "figures","mds_plot_bray_curtis.png"), plot = p, device = "png")
+ggsave(filename = file.path(prj_folder, analysis_folder, "figures","mds_plot_bray_curtis.png"), plot = p, device = "png")
 
 writeLines(" - write out distance matrix")
 dd = dist2list(distances, tri = FALSE)
 dx = spread(dd, key = "col", value = "value")
-fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "results", "bray_curtis_distances.csv"))
+fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "bray_curtis_distances.csv"))
 
 ## euclidean
 writeLines(" - calculate Euclidean distances")
 distances = distance(otu_tax_sample_norm, method="euclidean", type = "samples")
 iMDS  <- ordinate(otu_tax_sample_norm, "MDS", distance=distances)
 p <- plot_ordination(otu_tax_sample_norm, iMDS, color=grouping_variable1, shape=grouping_variable2)
-ggsave(filename = file.path(prj_folder, analysis_folder, "results","figures", "mds_plot_euclidean.png"), plot = p, device = "png")
+ggsave(filename = file.path(prj_folder, analysis_folder, "figures", "mds_plot_euclidean.png"), plot = p, device = "png")
 
 writeLines(" - write out euclidean distance matrix")
 dd = dist2list(distances, tri = FALSE)
 dx = spread(dd, key = "col", value = "value")
-fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "results", "euclidean_distances.csv"))
+fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "euclidean_distances.csv"))
 
 ### add tree ###
 random_tree = rtree(ntaxa((otu_tax_sample_norm)), rooted=TRUE, tip.label=taxa_names(otu_tax_sample_norm))
@@ -134,23 +134,23 @@ writeLines(" - calculate Unifrac distances")
 distances = distance(otu_norm_tree, method="unifrac", type = "samples")
 iMDS  <- ordinate(otu_norm_tree, "MDS", distance=distances)
 p <- plot_ordination(biom1, iMDS, color=grouping_variable1, shape=grouping_variable2)
-ggsave(filename = file.path(prj_folder, analysis_folder, "results", "figures","mds_plot_unifrac.png"), plot = p, device = "png")
+ggsave(filename = file.path(prj_folder, analysis_folder, "figures","mds_plot_unifrac.png"), plot = p, device = "png")
 
 writeLines(" - write out Unifrac distance matrix")
 dd = dist2list(distances, tri = FALSE)
 dx = spread(dd, key = "col", value = "value")
-fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "results", "unifrac_distances.csv"))
+fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "unifrac_distances.csv"))
 
 ## weighted unifrac
 writeLines(" - calculate weighted Unifrac distances")
 distances = distance(otu_norm_tree, method="wunifrac", type = "samples")
 iMDS  <- ordinate(otu_norm_tree, "MDS", distance=distances)
 p <- plot_ordination(biom1, iMDS, color=grouping_variable1, shape=grouping_variable2)
-ggsave(filename = file.path(prj_folder, analysis_folder, "results", "figures","mds_plot_weighted_unifrac.png"), plot = p, device = "png")
+ggsave(filename = file.path(prj_folder, analysis_folder, "figures","mds_plot_weighted_unifrac.png"), plot = p, device = "png")
 
 writeLines(" - write out weighted Unifrac distance matrix")
 dd = dist2list(distances, tri = FALSE)
 dx = spread(dd, key = "col", value = "value")
-fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "results", "weighted_unifrac_distances.csv"))
+fwrite(x = dx, file = file.path(prj_folder, analysis_folder, "weighted_unifrac_distances.csv"))
 
 
