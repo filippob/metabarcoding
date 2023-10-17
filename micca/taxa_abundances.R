@@ -14,15 +14,15 @@ library("metagenomeSeq")
 HOME <- Sys.getenv("HOME")
 repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
 prj_folder = file.path(HOME, "Documents/leguplus")
-analysis_folder = "Analysis/results_fagioli"
+analysis_folder = "Analysis/results_lupini"
 otu_norm_fname = file.path(prj_folder, analysis_folder, "otu_norm_CSS.csv")
 conf_file = "mapping_file.csv"
 outdir = file.path(prj_folder,analysis_folder)
-suffix = "fagioli"
+suffix = "lupino"
 
 ## treatment levels as in the metadata file
 level1 = "Controllo"
-level2 = "Fagioli"
+level2 = "Lupini"
 
 ## read metadata
 metadata = fread(file.path(prj_folder, conf_file))
@@ -157,7 +157,8 @@ mO <- mO %>% inner_join(temp, by = c("sample" = "sample"))
 
 ## model y = mu + type + treatment + e
 # mO$treatment <- factor(mO$treatment, levels = c("CTR", "T1", "T2", "T3"))
-mO$treatment <- factor(mO$treatment, levels = c("Controllo", "Fagioli"))
+# mO$treatment <- factor(mO$treatment, levels = c("Controllo", "Lupini"))
+mO$treatment <- factor(mO$treatment, levels = c(level1, level2))
 
 dd <- mO |>
   group_by(Genus, treatment, timepoint) |>
