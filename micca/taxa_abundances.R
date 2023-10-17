@@ -224,11 +224,37 @@ fname = paste("avg_counts_", suffix, ".csv", sep="")
 fname = file.path(outdir, "tables", fname)
 fwrite(x = tmp, file = fname)
 
+tmp <- mO |> filter(Genus %in% temp$Genus) |>
+  group_by(Genus, timepoint, treatment) |>
+  summarise(avg = mean(counts)) |>
+  spread(key = treatment, value = avg)
+
+genus_stats <- genus_stats |>
+  inner_join(tmp, by = c("Genus","timepoint"))
+
+fname = paste("significant_otus_abundance_", suffix, ".csv", sep="")
+fname = file.path(outdir, "tables", fname)
+fwrite(genus_stats, file = fname)
+
 ggplot(temp, aes(Genus)) + geom_bar()
 
 library("ggpubr")
 tmp <- temp |> group_by(Genus) |> summarise(N = n())
 ggbarplot(tmp, "Genus", "N", sort.val = "desc")
+
+?ggbarplot
+
+genus_stats <- genus_stats |> mutate(sign = ifelse(difference_vs_ctrl > 0, '+','-'))
+
+g1 <- ggbarplot(genus_stats, x = "Genus", y = "difference_vs_ctrl", facet.by = "timepoint",
+          orientation = "horiz", fill="sign", color = "sign")
+
+g1 <- ggpar(g1, font.tickslab = c(8))
+print(g1)
+
+fname = paste("significant_otu_abundance_", suffix, ".png", sep="")
+fname = file.path(outdir, "figures", fname)
+ggsave(filename = fname, plot = g1, device = "png", width = 7.5, height = 7)
 
 ## model y = mu + treatment + e (within type)
 # D <- mO %>%
