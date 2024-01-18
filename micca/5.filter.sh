@@ -16,6 +16,8 @@ fi
 echo " - filtering reads"
 ## max N's; max error rate (default: 1 error / 100 bps)
 singularity run $sing_container micca filter -i ${inpdir}/assembled_16S.fastq -o ${outdir}/assembled_16S_clean.fasta --maxns 0 --maxeerate 1
+## --maxns: discard reads with more than the specified number of allowed Ns (uncalled bases) 
+## --maxeerate: discard sequences with more than the specified expected error rate % (e.g. <=1% is less or equal than one error per 100 bases: same as Phred score).
 
 # count
 echo " - countig reads after filtering"
