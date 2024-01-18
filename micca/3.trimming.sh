@@ -26,6 +26,11 @@ do
 	echo "Running sickle on file "${file}"" >> ${outdir}/quality_control/stats_trim.txt
 	## !!! watch out with the read indicator (e.g. R1/R2 or 1/2) !!!
 	$sickle_exe pe -f "${file}_${r1}_cutadapt.fastq.gz" -r "${file}_${r2}_cutadapt.fastq.gz" -o ${outdir}/trimmed/"${file}_trimmed_${r1}.fastq.gz" -p ${outdir}/trimmed/"${file}_trimmed_${r2}.fastq.gz" -s ${outdir}/trimmed/"${file}_singles.gz" -t sanger -q 20 -g 1>> ${outdir}/quality_control/stats_trim.txt
+	## pe: paired-end reads
+	## -t: type of reads (CASAVA, Illumina, Sanger)
+	## -q: quality threshold (Phred score) [default: 20]
+	## -g: gzip output
+
 done < names_single.txt
 
 echo "DONE!!"
