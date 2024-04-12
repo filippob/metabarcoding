@@ -36,6 +36,7 @@ if (length(args) >= 1) {
     min_tot_n = 15,
     min_sample = 3,
     project = "",
+    treatment_column = "Antibiotc",
     force_overwrite = FALSE
   ))
 }
@@ -43,7 +44,7 @@ if (length(args) >= 1) {
 HOME <- Sys.getenv("HOME")
 repo = file.path(HOME, config$repo)
 prjfolder = file.path(HOME, config$prjfolder)
-outdir = file.path(prj_folder,config$analysis_folder)
+outdir = file.path(prjfolder,config$analysis_folder)
 
 fname = file.path(outdir, "beta_by_group.config.r")
 fwrite(x = config, file = fname)
