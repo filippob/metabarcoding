@@ -6,6 +6,7 @@ library("vegan")
 library("ggplot2")
 library("phyloseq")
 library("tidyverse")
+# library("speedyseq")
 library("data.table")
 library("metagenomeSeq")
 
@@ -36,7 +37,7 @@ if (length(args) >= 1) {
     min_tot_n = 15,
     min_sample = 3,
     project = "",
-    treatment_column = "Antibiotc",
+    treatment_column = "Antibiotic",
     force_overwrite = FALSE
   ))
 }
@@ -79,6 +80,8 @@ if(nchar(config$project) > 0) {
   otu_norm_subset <- subset_samples(otu_tax_sample_norm, project == config$project)
 } else otu_norm_subset <- otu_tax_sample_norm
 
+## changing treatment column
+sample_data(otu_norm_subset)$treatment <- dplyr::pull(x, !!config$treatment_column )
 sample_data(otu_norm_subset) |> head() |> print()
 
 steps = unique(sample_data(otu_norm_subset)$timepoint)
@@ -96,7 +99,7 @@ for (k in steps) {
   distances = distance(temp, method="bray", type = "samples")
   iMDS  <- ordinate(temp, "MDS", distance=distances)
   p <- plot_ordination(temp, iMDS, color="treatment")
-  fname = paste("mds_plot_bray_curtis_", suffix, k , ".png")
+  fname = paste("mds_plot_bray_curtis_", config$suffix, k , ".png")
   ggsave(filename = file.path(prj_folder, analysis_folder, "figures", fname), plot = p, device = "png")
 }
 
@@ -121,14 +124,14 @@ source("~/Documents/cremonesi/rumine_anafi/parwise.adonis.r")
 
 fpath = file.path(outdir, "tables")
 dir.create(fpath, showWarnings = FALSE)
-fname = file.path(fpath, paste("permanova_",suffix,".csv",sep=""))
+fname = file.path(fpath, paste("permanova_",config$suffix,".csv",sep=""))
 fwrite(x = list("PERMANOVA"), file = fname)
 
 write(x = "PERMANOVA", file = fname)
 
-if (nfactors > 1) {
+if (config$nfactors > 1) {
   
-  nvars = nfactors
+  nvars = config$nfactors
   matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
   
   obj <- adonis2(matx ~ dx$timepoint+dx$treatment, permutations = 1000)
@@ -157,7 +160,7 @@ if (nfactors > 1) {
   }
 } else {
   
-  nvars = nfactors
+  nvars = config$nfactors
   matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
   
   obj <- adonis2(matx ~ dx$treatment, permutations = 1000)
@@ -190,7 +193,7 @@ for (k in steps) {
                  ellipse.type = "norm",
                  repel = TRUE)
   
-  fname = paste("mds_plot_bray-curtis_ellipse_", suffix, "_", k , ".png")
+  fname = paste("mds_plot_bray-curtis_ellipse_", config$suffix, "_", k , ".png")
   to_save[[paste("beta_div_plot", k, sep="_")]] = g
   ggsave(filename = file.path(prj_folder, analysis_folder, "figures", fname), plot = g, device = "png")
 }
@@ -221,7 +224,7 @@ if(length(steps) > 1) {
 g
 
 ## save results to R object
-fname = paste("beta_results_", suffix, ".RData", sep="")
+fname = paste("beta_results_", config$suffix, ".RData", sep="")
 fname = file.path(outdir, fname)
 save(to_save, file = fname)
 
