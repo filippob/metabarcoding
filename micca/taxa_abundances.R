@@ -6,6 +6,7 @@ library("broom")
 library("vegan")
 library("ggpubr")
 library("ggplot2")
+library("ggridges")
 library("tidytext")
 library("phyloseq")
 library("tidyverse")
@@ -94,7 +95,7 @@ D <- mO |> group_by(treatment, timepoint) |>
   
 my_palette = get_palette(c("#00AFBB", "pink", "#FC4E07", "green", "purple", "#E7B800", "darkgrey", "salmon", "blue"), length(unique(D$Phylum)))
 
-plot_title = paste("phylum", suffix)
+plot_title = paste("phylum", config$suffix)
 
 phylums <- D |>
   group_by(Phylum) |>
@@ -131,6 +132,44 @@ fwrite(x = arrange(D, timepoint, treatment, desc(avg)), file = fname, sep = ",")
 
 to_save <- list("phylum_relabund"=D)
 
+## F:B ratio
+temp <- otus |>
+  select(-c(tax_id,Kingdom, Class, Order, Family, Genus, Species)) |>
+  gather(key = "sample", value = "counts", -c("Phylum")) |>
+  filter(Phylum != "")
+
+temp <- temp %>% inner_join(select(metadata, -`sample-id`), by = c("sample" = "sample"))
+
+fb <- temp |>
+  filter(Phylum %in% c("Firmicutes", "Bacteroidetes")) |>
+  group_by(sample, Phylum) |>
+  summarise(tot = sum(counts), treatment = unique(treatment), timepoint = unique(timepoint)) |>
+  spread(key = Phylum, value = tot) |>
+  mutate(FB = Firmicutes/Bacteroidetes, treatment = factor(treatment, levels = c(level1, level2)))
+
+to_save <- list("data_for_fb"=temp)
+to_save <- list("fb_res"=fb)
+
+p1 <- ggplot(filter(fb, FB != Inf), aes(x = FB, y = treatment, fill = treatment)) 
+p1 <- p1 + geom_density_ridges(aes(point_color = treatment, point_fill = treatment, point_shape = treatment),
+                               alpha = .2, point_alpha = 1, jittered_points = TRUE) 
+p1 <- p1 + facet_wrap(~timepoint)
+p1 <- p1 + scale_point_color_hue(l = 40)
+p1 <- p1 + scale_discrete_manual(aesthetics = "point_shape", values = c(21, 22, 23))
+p1
+
+temp <- filter(fb, FB != Inf) |>
+  group_by(timepoint) |>
+  do(tidy(lm(FB ~ treatment, data = .))) |>
+  filter(term != "(Intercept)") |>
+  mutate(term = gsub('treatment','',term)) |>
+  rename(treatment = term) |>
+  select(timepoint, treatment, p.value)
+
+writeLines(" - FB ratio")
+print(temp)
+
+##############################
 ## taxonomic levels abundances
 temp <- otus |>
   select(-c(tax_id,Kingdom, Phylum, Species)) |>
@@ -314,3 +353,10 @@ gg <- ggplot(tmp, aes(x = contrast, y = Genus)) + geom_tile(aes(fill=pvalue), co
 fname = paste("taxa_contrasts_significant_", config$suffix, ".png", sep="")
 fname = file.path(outdir, "figures", fname)
 ggsave(filename = fname, plot = gg, device = "png", width = 5, height = 11)
+
+## save results to R object
+fname = paste("taxa_abundance_results_", config$suffix, ".RData", sep="")
+fname = file.path(outdir, fname)
+save(to_save, file = fname)
+
+print("DONE!")
