@@ -147,8 +147,8 @@ fb <- temp |>
   spread(key = Phylum, value = tot) |>
   mutate(FB = Firmicutes/Bacteroidetes, treatment = factor(treatment, levels = c(level1, level2)))
 
-to_save <- list("data_for_fb"=temp)
-to_save <- list("fb_res"=fb)
+to_save[["data_for_fb"]] = temp
+to_save[["fb_res"]] = fb
 
 p1 <- ggplot(filter(fb, FB != Inf), aes(x = FB, y = treatment, fill = treatment)) 
 p1 <- p1 + geom_density_ridges(aes(point_color = treatment, point_fill = treatment, point_shape = treatment),
