@@ -1,128 +1,238 @@
 
 library("broom")
+library("ggrepel")
+library("ggridges")
 library("tidyverse")
 library("tidymodels")
 library("data.table")
 library("gghighlight")
 
 ## PARAMETERS
+args = commandArgs(trailingOnly=TRUE)
+if (length(args) >= 1) {
+  
+  #loading the parameters
+  source(args[1])
+  # source("Analysis/hrr/config.R")
+  
+} else {
+  #this is the default configuration, used for development and debug
+  writeLines('Using default config')
+  
+  #this dataframe should be always present in config files, and declared
+  #as follows
+  config = NULL
+  config = rbind(config, data.frame(
+    #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
+    #genotypes = "Analysis/hrr/goat_thin.ped",
+    repo = "Documents/cremonesi/metabarcoding",
+    prjfolder = "Documents/cremonesi/suini_bontempo/pig_feces",
+    analysis_folder = "Analysis/results",
+    conf_file = "Config/rectum_mapping.csv",
+    suffix = "feces_porous_zinc",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    min_tot_n = 15,
+    min_sample = 3,
+    project = "ZnO poroso",
+    treatment_column = "treatment",
+    sample_column = "sample",
+    grouping_variable2 = "timepoint",
+    grouping_variable1 = "treatment",
+    force_overwrite = FALSE
+  ))
+}
+
 HOME <- Sys.getenv("HOME")
-repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
-prj_folder = file.path(HOME, "Documents/cremonesi/suini_bontempo")
-analysis_folder = "Analysis/micca/results_zinc_caecum"
-# fname = "filtered_otu/otu_table_filtered.biom"
-# conf_file = "Config/mapping_file.csv"
-conf_file = "Config/zinco_poroso_caecum.csv"
-outdir = file.path(prj_folder,analysis_folder)
-suffix = "zinc_caecum"
+repo = file.path(HOME, config$repo)
+prjfolder = file.path(HOME, config$prjfolder)
+outdir = file.path(prjfolder,config$analysis_folder)
 
-grouping_variable2 = "timepoint"
-grouping_variable1 = "treatment"
+fname = file.path(outdir, "beta_by_group.config.r")
+fwrite(x = config, file = fname)
 
-alpha = fread(file.path(prj_folder, analysis_folder, "alpha.csv"))
-metadata = fread(file.path(prj_folder,conf_file))
+## treatment levels as in the metadata file
+grouping_variable1 = config$grouping_variable1
+grouping_variable2 = config$grouping_variable2
 
-metadata <- metadata |> select(`progressivo MISEQ`, `GRUPPO sperimentale`, TIMEPOINT, Progetto, tipologia)
-# metadata <- metadata |> filter(Progetto == "Zinco Poroso")
-metadata <- rename(metadata, `sample-id` = `progressivo MISEQ`, treatment = `GRUPPO sperimentale`, timepoint = TIMEPOINT) |>
-  mutate(`sample-id` = as.character(`sample-id`))
-metadata = select(metadata, c(`sample-id`, treatment, timepoint)) |> filter(timepoint == "D28")
+## read metadata
+metadata = fread(file.path(prjfolder, config$conf_file))
+metadata <- metadata |> rename('sample-id' = !!config$sample_column, treatment = !!config$treatment_column)
 
+if (config$project != "") metadata <- filter(metadata, project == !!config$project)
+
+print(head(metadata))
+
+metadata <- mutate(metadata, `sample-id` = as.character(`sample-id`))
+metadata = metadata |> select(c(`sample-id`, treatment, timepoint)) |> mutate(treatment = as.factor(treatment))
+
+## read alpha div data
+alpha = fread(file.path(prjfolder, config$analysis_folder, "alpha.csv"))
 alpha$`sample-id` = gsub('sample.','',alpha$`sample-id`)
 alpha$`sample-id` = gsub('\\.','-',alpha$`sample-id`)
 
-# metadata <- mutate(metadata, id = as.character(id))
-# metadata = select(metadata, c(`sample-id`, treatment))
-# metadata <- metadata |> select(-c(seq_paola, sampling_date, Tipologia)) |> mutate(id = as.character(id))
-# metadata <- metadata |> select(-c(pig)) |> mutate(id = as.character(id))
 alpha = alpha %>% inner_join(metadata, by = c("sample-id" = "sample-id"))
 
 ## remove s.e. columns
 alpha <- select(alpha, -c(se.chao1,se.ACE))
 
-# malpha = gather(alpha, key = "metric", value = "value", -c("sample-id","timepoint","treatment"))
+## reshaping data
 malpha = gather(alpha, key = "metric", value = "value", -c("sample-id",all_of(grouping_variable1),all_of(grouping_variable2)))
 
+## alpha div boxplots
 p <- ggplot(malpha, aes(x = .data[[grouping_variable1]], y = value))
-# p <- p + geom_boxplot(aes(color = substrate), alpha=0.9, width = 0.33, size = 1)
+p <- p + geom_boxplot(aes(color = .data[[grouping_variable1]]), alpha=0.7, width = 0.39, size = 1)
 p <- p + geom_jitter(aes(color = .data[[grouping_variable1]]), alpha = 0.8, width = 0.1)
 p <- p + scale_color_manual(values = c("#00AFBB", "#E7B800", "#FC4E07", "green","darkred"))
 p <- p + facet_grid(metric~.data[[grouping_variable2]], scales = "free")
-# p <- p + facet_wrap(~metric, scales = "free")
-p <- p + theme(axis.text.x = element_text(angle = 90))
-p
+p <- p + theme(axis.text.x = element_text(angle = 0))
+# p
 
-library("ggridges")
-q <- ggplot(malpha, aes(y=.data[[grouping_variable1]], x=value, fill=.data[[grouping_variable1]])) +
+fname = paste("alpha_boxplot_", config$suffix, ".png", sep="")
+fname = file.path(outdir, "figures", fname)
+ggsave(filename = fname, plot = p, device = "png", width = 7.5, height = 8, dpi = 300)
+
+## density plots
+q <- ggplot(malpha, aes(y=.data[[grouping_variable2]], x=value, fill=.data[[grouping_variable2]])) +
+  geom_density_ridges(scale=0.9, alpha = 0.5) +
+  theme(legend.position="none") + facet_grid(.data[[grouping_variable1]]~metric, scales = "free")
+# q
+
+q <- ggplot(malpha, aes(y=.data[[grouping_variable1]], x=value, fill=.data[[grouping_variable2]])) +
   geom_density_ridges(scale=0.9, alpha = 0.5) +
   theme(legend.position="none") + facet_wrap(~metric, scales = "free")
-q
+# q
 
-fname = paste("alpha_plot_", suffix, ".png", sep="")
-fname = file.path(prj_folder, outdir, "figures", fname)
-ggsave(filename = fname, plot = p, device = "png", width = 5, height = 7)
+fname = paste("alpha_plot_", config$suffix, ".png", sep="")
+fname = file.path(outdir, "figures", fname)
+ggsave(filename = fname, plot = q, device = "png", width = 5, height = 7)
 
+### Linear model
 D <- malpha %>%
-  group_by(metric, .data[[grouping_variable2]]) %>%
-  # do(tidy(lm(value ~ kit + substrate + treatment, data = .))) %>%
-  do(tidy(lm(value ~ .data[[grouping_variable1]], data = .))) %>%
-  filter(term != "(Intercept)")
+  group_by(metric) %>%
+  do(tidy(lm(value ~ + .data[[grouping_variable2]] + .data[[grouping_variable1]], data = .))) %>%
+  filter(term != "(Intercept)", term != "Residuals")
+
+filter(D, p.value < 0.05)
 
 alpha_stats <- malpha %>% 
-  group_by(metric, .data[[grouping_variable1]]) %>%
+  group_by(metric, .data[[grouping_variable2]], .data[[grouping_variable1]]) %>%
   summarise(avg = round(mean(value),3), std = round(sd(value),3))
 
-# temp <- alpha_stats |> select(-std) |> spread(key = .data[[grouping_variable2]], value = avg) |>
-#   mutate(diffA1 = A1-AX, diffA2 = A2-AX) |>
-#   select(-c(A1,A2,AX))
-# temp <- alpha_stats |> select(-std) |> spread(key = .data[[grouping_variable1]], value = avg) |>
-#   mutate(diff = INSETTI-SOIA) |>
-#   select(-c(INSETTI,SOIA))
-temp <- alpha_stats |> select(-std) |> spread(key = .data[[grouping_variable1]], value = avg) |>
-  mutate(diff1 = T1-CTR, diff2 = T2-CTR, diff3 = T3-CTR) |>
-  select(-c(CTR,T1,T2,T3))
+alpha_stats[alpha_stats$avg > 10,"avg"] <- round(alpha_stats$avg[alpha_stats$avg > 10],1)
+alpha_stats[alpha_stats$std > 1,"std"] <- round(alpha_stats$std[alpha_stats$std > 1],1)
 
-# 
-alpha_stats <- temp |>
-  inner_join(alpha_stats, by = c("metric" = "metric"))
+dd <- alpha_stats |>
+  unite("avg_", avg:std, sep = "+/-") |>
+  spread(key = treatment, value = avg_) |>
+  arrange(timepoint)
 
-# temp <- alpha_stats |> select(-std) |> spread(key = "treatment", value = avg) |>
-#   mutate(diffT1 = T1-CTR, diffT2 = T2-CTR, diffT3 = T3-CTR) |>
-#   select(-c(CTR,T1,T2,T3)) |>
-#   rename(T1 = diffT1, T2 = diffT2, T3 = diffT3) |>
-#   gather(key = "treatment", value = "difference_vs_ctrl", -c(metric))
+fname = paste("alpha__treatment_stats", config$suffix, ".csv", sep="")
+dir.create(file.path(outdir, "tables"), showWarnings = FALSE)
+fname = file.path(outdir, "tables", fname)
+fwrite(dd, file = fname)
 
-# alpha_stats <- temp |>
-#   inner_join(alpha_stats, by = c("metric" = "metric", "kit" = "kit", "substrate" = "substrate")) |>
-#   # inner_join(alpha_stats, by = c("metric" = "metric", "treatment" = "treatment")) |>
-#   select(-std)
+avg_timepoint <- malpha |>
+  group_by(metric, timepoint) |>
+  summarise(avg = mean(value)) |>
+  rename(term = timepoint)
+
+base_treatment = levels(as.factor(alpha$treatment))[1]
+base_timepoint = levels(as.factor(alpha$timepoint))[1]
+
+temp <- avg_timepoint |>
+  rename(baseline = avg) |>
+  filter(term == base_timepoint) |>
+  select(-term)
+
+diff_timepoint <- avg_timepoint |>
+  left_join(temp, by = "metric") |>
+  mutate(diff = avg - baseline, pct_change = diff/baseline*100)
+
+avg_treatment <- malpha |>
+  group_by(metric, treatment) |>
+  summarise(avg = mean(value)) |>
+  rename(term = treatment)
+
+temp <- avg_treatment |>
+  rename(baseline = avg) |>
+  filter(term == base_treatment) |>
+  select(-term)
+
+diff_treatment <- avg_treatment |>
+  left_join(temp, by = "metric") |>
+  mutate(diff = avg - baseline, pct_change = diff/baseline*100)
+
+
+avg <- avg_timepoint |> bind_rows(avg_treatment)
+diff <- diff_timepoint |> bind_rows(diff_treatment) |>
+  select(-c(avg,baseline))
 
 D$term  <- gsub("\\.data.*\\]","",D$term)
 
-# D <- alpha_stats %>% inner_join(D, by = c("metric" = "metric", "timepoint" = "timepoint", "treatment" = "term"))
-D <- alpha_stats %>% inner_join(D, by = c("metric" = "metric", setNames("term", grouping_variable1))) |>
-  select(-c(avg,std))
+D <- D |>
+  left_join(avg, by = c("metric" = "metric", "term" = "term"))
 
-fname = paste("alpha_significance_treatment_", suffix, ".csv", sep="")
+D <- D |>
+  left_join(diff, by = c("metric" = "metric", "term" = "term"))
+
+
+fname = paste("alpha_significance_treatment_", config$suffix, ".csv", sep="")
 dir.create(file.path(outdir, "tables"), showWarnings = FALSE)
 fname = file.path(outdir, "tables", fname)
 fwrite(D, file = fname)
 
 levels(D$metric) <- c("chao","ace","fisher","n_otu","shannon","simpson","equit.","simps_e")
 
-w <- ggplot(ungroup(D), aes(x=.data[[grouping_variable2]], y=p.value))
-w <- w + geom_jitter(aes(group=metric, colour=metric), size = 3, width = 0.2)
-w <- w + gghighlight(p.value < 0.10, label_params = list(size = 3, label.size = 0.25, max.overlaps = 10))
+D <- D |> mutate(Color = ifelse(p.value < 0.05, "red", "gray"))
+
+## significance plots
+# ggplot(D, aes(x = term, y = p.value)) +
+#   geom_jitter(aes(colour = metric)) +
+#   gghighlight(p.value < 0.05, label_key = metric) +
+#   geom_hline(yintercept=0.05, linetype="dashed", color = "red", alpha = 0.3) + 
+#   theme(axis.text.x = element_text(angle=0, size = 9),
+#         strip.text.x = element_text(size = 12),
+#         axis.title = element_text(size = 11))
+
+w <- ggplot(D, aes(x=term, y=p.value))
+w <- w + geom_jitter(aes(colour=metric), size = 2, width = 0.2)
+w <- w + gghighlight(p.value < 0.05, label_key = metric, label_params = list(size = 4, label.size = 0.5, max.overlaps = 10))
 w <- w + geom_hline(yintercept=0.05, linetype="dashed", color = "red", alpha = 0.3)
-w <- w + xlab("term")
-w <- w + theme(axis.text.x = element_text(angle=90, size = 7),
+w <- w + xlab("term") + coord_cartesian(ylim = c(-0.01,1))
+w <- w + theme(axis.text.x = element_text(angle=0, size = 9),
                strip.text.x = element_text(size = 12),
                axis.title = element_text(size = 11))
 w
 
-fname = paste("alpha_significance_", suffix, ".png", sep="")
-fname = file.path(prj_folder, outdir, "figures", fname)
+
+w1 <- ggplot(D, aes(x = term, y = p.value, label = metric))
+w1 <- w1 + geom_jitter(aes(group=metric, colour=Color), size = 2, width = 0.2)
+w1 <- w1 + geom_hline(yintercept=0.05, linetype="dashed", color = "red", alpha = 0.3)
+w1 <- w1 + scale_color_identity() + theme_bw()
+w1 <- w1 + xlab("term") + coord_cartesian(ylim = c(-0.01,1))
+w1 <- w1 + theme(axis.text.x = element_text(angle=0, size = 9),
+               strip.text.x = element_text(size = 12),
+               axis.title = element_text(size = 11))
+w1 <- w1 + geom_label_repel(data = subset(D, p.value < 0.05),
+                            size = 3,
+                            max.overlaps = Inf,
+                            box.padding   = 0.5,
+                            point.padding = 0.5,
+                            force = 1,
+                            segment.size  = 0.2,
+                            color = "red")
+w1
+
+
+dir.create(file.path(outdir, "figures"), showWarnings = FALSE)
+
+fname = paste("alpha_significance_one_", config$suffix, ".png", sep="")
+fname = file.path(outdir, "figures", fname)
 ggsave(filename = fname, plot = w, device = "png", width = 9, height = 7)
+
+fname = paste("alpha_significance_two_", config$suffix, ".png", sep="")
+fname = file.path(outdir, "figures", fname)
+ggsave(filename = fname, plot = w1, device = "png", width = 9, height = 7)
 
 
 ## Tukey HSD (contrasts)
@@ -146,7 +256,7 @@ contrasts <- malpha |>
   unnest(tidied) |>
   select(-c(data,fit,hsd))
 
-fname = paste("alpha_contrasts_", suffix, ".csv", sep="")
+fname = paste("alpha_contrasts_", config$suffix, ".csv", sep="")
 fname = file.path(outdir, "tables", fname)
 fwrite(contrasts, file = fname)
 
@@ -173,9 +283,13 @@ gg <- ggplot(tmp, aes(x = contrast, y = metric)) + geom_tile(aes(fill=pvalue), c
         panel.grid.major = element_line(color = 'white'),
         panel.grid.minor = element_line(color = 'white'))
 
-fname = paste("alpha_contrasts_significant_", suffix, ".png", sep="")
+fname = paste("alpha_contrasts_significant_", config$suffix, ".png", sep="")
 fname = file.path(outdir, "figures", fname)
 ggsave(filename = fname, plot = gg, device = "png")
 
+to_save <- list("alpha_sig_plot_one"=w, "alpha_sig_plot_two"=w1, "contrasts_plot"=gg, "alpha_stats"=dd, "alpha_sign_stats" = D, "contrasts_tbl"=contrasts)
 
+fname = paste("alpha_results_", config$suffix, ".RData", sep="")
+fname = file.path(outdir, fname)
 
+save(to_save, file = fname)
