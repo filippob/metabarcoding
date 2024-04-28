@@ -26,16 +26,16 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/suini_bontempo/pig_feces",
-    analysis_folder = "Analysis/results",
-    conf_file = "Config/rectum_mapping.csv",
-    suffix = "feces_porous_zinc",
-    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    prjfolder = "Documents/cremonesi/suini_bontempo",
+    analysis_folder = "Analysis/micca/results_zinc_caecum",
+    conf_file = "Config/caecum_mapping.csv",
+    suffix = "caecum_porous_zinc",
+    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
-    project = "ZnO poroso",
+    project = "Zn poroso",
     treatment_column = "treatment",
-    sample_column = "sample",
+    sample_column = "id",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
     force_overwrite = FALSE
@@ -107,12 +107,33 @@ fname = file.path(outdir, "figures", fname)
 ggsave(filename = fname, plot = q, device = "png", width = 5, height = 7)
 
 ### Linear model
-D <- malpha %>%
-  group_by(metric) %>%
-  do(tidy(lm(value ~ + .data[[grouping_variable2]] + .data[[grouping_variable1]], data = .))) %>%
-  filter(term != "(Intercept)", term != "Residuals")
+if (config$nfactors == 1) {
+  
+  D <- malpha %>%
+    group_by(metric) %>%
+    do(tidy(lm(value ~ .data[[grouping_variable1]], data = .))) %>%
+    filter(term != "(Intercept)", term != "Residuals")
+  
+  df <- malpha %>%
+    group_by(metric) %>%
+    do(tidy(anova(lm(value ~ .data[[grouping_variable1]], data = .)))) %>%
+    filter(term != "(Intercept)", term != "Residuals")
+} else {
+  
+  D <- malpha %>%
+    group_by(metric) %>%
+    do(tidy(lm(value ~ .data[[grouping_variable2]] + .data[[grouping_variable1]], data = .))) %>%
+    filter(term != "(Intercept)", term != "Residuals")
+  
+  df <- malpha %>%
+    group_by(metric) %>%
+    do(tidy(anova(lm(value ~ .data[[grouping_variable2]] + .data[[grouping_variable1]], data = .)))) %>%
+    filter(term != "(Intercept)", term != "Residuals")
+}
 
-filter(D, p.value < 0.05)
+
+filter(D, p.value < 0.05) |>
+  print()
 
 alpha_stats <- malpha %>% 
   group_by(metric, .data[[grouping_variable2]], .data[[grouping_variable1]]) %>%
@@ -192,7 +213,33 @@ D <- D |> mutate(Color = ifelse(p.value < 0.05, "red", "gray"))
 #   geom_hline(yintercept=0.05, linetype="dashed", color = "red", alpha = 0.3) + 
 #   theme(axis.text.x = element_text(angle=0, size = 9),
 #         strip.text.x = element_text(size = 12),
-#         axis.title = element_text(size = 11))
+#      
+
+df$term = gsub("\\.data\\[*\"","",df$term)
+df$term = gsub("\\]","",df$term)
+df$term = gsub("\"","",df$term)
+
+d <- data.frame(
+  idx = c(1, 1, 1, 2, 2, 2, 3, 3, 3),
+  value = c(1, 2, 3, 10, 11, 12, 9, 10, 11),
+  category = rep(c("a", "b", "c"), 3),
+  stringsAsFactors = FALSE
+)
+
+# Highlight the lines whose max values are larger than 10
+ggplot(d, aes(idx, value, colour = category)) +
+  geom_line() + gghighlight(max(value) > 10)
+
+w0 <- ggplot(df, aes(x=term, y=p.value, colour = metric))
+w0 <- w0 + geom_point(position=position_dodge(width = 0.5)) 
+w0 <- w0 + gghighlight(p.value < 0.10, label_key = metric, label_params = list(size = 4, label.size = 0.5, max.overlaps = 2)) 
+w0 <- w0 + geom_hline(yintercept=0.05, linetype="dashed", color = "red", alpha = 0.3)
+w0 <- w0 + xlab("term") + coord_cartesian(ylim = c(-0.01,1))
+w0 <- w0 + theme(axis.text.x = element_text(angle=0, size = 9),
+               strip.text.x = element_text(size = 12),
+               axis.title = element_text(size = 11))
+w0
+
 
 w <- ggplot(D, aes(x=term, y=p.value))
 w <- w + geom_jitter(aes(colour=metric), size = 2, width = 0.2)
@@ -287,7 +334,7 @@ fname = paste("alpha_contrasts_significant_", config$suffix, ".png", sep="")
 fname = file.path(outdir, "figures", fname)
 ggsave(filename = fname, plot = gg, device = "png")
 
-to_save <- list("alpha_sig_plot_one"=w, "alpha_sig_plot_two"=w1, "contrasts_plot"=gg, "alpha_stats"=dd, "alpha_sign_stats" = D, "contrasts_tbl"=contrasts)
+to_save <- list("alpha_sig_plot_one"=w, "alpha_sig_plot_two"=w1, "alpha_sig_anova"=w0, "contrasts_plot"=gg, "alpha_stats"=dd, "alpha_sign_stats" = D, "contrasts_tbl"=contrasts)
 
 fname = paste("alpha_results_", config$suffix, ".RData", sep="")
 fname = file.path(outdir, fname)
