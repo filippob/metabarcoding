@@ -293,8 +293,14 @@ D$term <- gsub("treatment","",D$term)
 D$term <- gsub("\\.data.*]]","",D$term)
 # D$term <- gsub("timepoint","",D$term)
 
-datatable(D, options = list(pageLength=100)) %>% 
+dtbl <- DT::datatable(D, options = list(pageLength=100)) %>% 
   formatStyle('p.value', backgroundColor = styleInterval(0.05, c('yellow', 'white')))
+
+## saving HTML file with DT::datatable() output
+fname = paste("significant_otus_DT_datatable_", config$suffix, ".html", sep="")
+fname = file.path(outdir, "tables", fname)
+DT::saveWidget(y, fname)
+
 
 fname = paste("significant_otus_treatment_within_timepoint_", config$suffix, ".csv", sep="")
 fname = file.path(outdir, "tables", fname)
