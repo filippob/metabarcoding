@@ -251,8 +251,10 @@ diff <- genus_stats |>
   select(-std) |> 
   spread(key = "treatment", value = avg)
 
+cmb <- combn(exp_levels, 2)
+
 res = data.frame("dummy" = rep("",nrow(diff)))
-for(i in 1:ncol(temp)) {
+for(i in 1:ncol(cmb)) {
   
   pair <- cmb[,i]
   print(pair)
@@ -270,6 +272,7 @@ for(i in 1:ncol(temp)) {
 }
 
 res$dummy <- NULL
+
 diff <- diff |> 
   bind_cols(res)
 
@@ -314,11 +317,14 @@ tmp <- mO |> filter(Genus %in% temp$Genus) |>
   spread(key = .data[[config$grouping_variable1]], value = avg)
 
 genus_stats <- genus_stats |>
-  inner_join(tmp, by = c("Genus","timepoint"))
+  inner_join(temp, by = c("Genus" = "Genus","timepoint"="timepoint", "treatment"="term"))
 
 fname = paste("significant_otus_abundance_", config$suffix, ".csv", sep="")
 fname = file.path(outdir, "tables", fname)
 fwrite(genus_stats, file = fname)
+
+to_save[["lm_results"]] = D
+to_save[["lm_significant_stats"]] = genus_stats
 
 # ggplot(temp, aes(Genus)) + geom_bar()
 
