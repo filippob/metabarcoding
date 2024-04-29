@@ -33,16 +33,16 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/suini_bontempo/pig_feces",
-    analysis_folder = "Analysis/results",
+    prjfolder = "Documents/cremonesi/suini_bontempo",
+    analysis_folder = "Analysis/micca/results_zinc_caecum",
     otu_norm_file = "otu_norm_CSS.csv",
-    conf_file = "Config/rectum_mapping.csv",
-    suffix = "feces_porous_zinc",
-    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    conf_file = "Config/caecum_mapping.csv",
+    suffix = "caecum_porous_zinc",
+    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
-    project = "ZnO poroso",
-    sample_column = "sample",
+    project = "Zn poroso",
+    sample_column = "id",
     treatment_column = "treatment",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
@@ -299,7 +299,7 @@ dtbl <- DT::datatable(D, options = list(pageLength=100)) %>%
 ## saving HTML file with DT::datatable() output
 fname = paste("significant_otus_DT_datatable_", config$suffix, ".html", sep="")
 fname = file.path(outdir, "tables", fname)
-DT::saveWidget(y, fname)
+DT::saveWidget(dtbl, fname)
 
 
 fname = paste("significant_otus_treatment_within_timepoint_", config$suffix, ".csv", sep="")
@@ -406,3 +406,4 @@ fname = file.path(outdir, fname)
 save(to_save, file = fname)
 
 print("DONE!")
+
