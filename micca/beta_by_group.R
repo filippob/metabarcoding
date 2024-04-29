@@ -26,18 +26,16 @@ if (length(args) >= 1) {
   #as follows
   config = NULL
   config = rbind(config, data.frame(
-    #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
-    #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/moroni/capre/delower",
-    analysis_folder = "Analysis/results",
-    conf_file = "Config/mapping_file.csv",
-    suffix = "goat_milk",
-    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    prjfolder = "Documents/cremonesi/suini_bontempo",
+    analysis_folder = "Analysis/micca/results_zinc_caecum",
+    conf_file = "Config/caecum_mapping.csv",
+    suffix = "caecum_porous_zinc",
+    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
-    project = "",
-    treatment_column = "Antibiotic",
+    project = "Zn poroso",
+    treatment_column = "treatment",
     force_overwrite = FALSE
   ))
 }
@@ -81,7 +79,7 @@ if(nchar(config$project) > 0) {
 } else otu_norm_subset <- otu_tax_sample_norm
 
 ## changing treatment column
-sample_data(otu_norm_subset)$treatment <- dplyr::pull(x, !!config$treatment_column )
+# sample_data(otu_norm_subset)$treatment <- dplyr::pull(x, !!config$treatment_column )
 sample_data(otu_norm_subset) |> head() |> print()
 
 steps = unique(sample_data(otu_norm_subset)$timepoint)
@@ -100,7 +98,7 @@ for (k in steps) {
   iMDS  <- ordinate(temp, "MDS", distance=distances)
   p <- plot_ordination(temp, iMDS, color="treatment")
   fname = paste("mds_plot_bray_curtis_", config$suffix, k , ".png")
-  ggsave(filename = file.path(prj_folder, analysis_folder, "figures", fname), plot = p, device = "png")
+  ggsave(filename = file.path(prjfolder, config$analysis_folder, "figures", fname), plot = p, device = "png")
 }
 
 ## permanova
@@ -108,6 +106,13 @@ metadata <- sample_data(otu_norm_subset)
 metadata$`sample-id` = row.names(metadata)
 row.names(metadata) <- NULL
 metadata <- as_tibble(metadata)
+metadata <- metadata |> rename('sample-id' = !!config$sample_column, treatment = !!config$treatment_column)
+
+## UNCOMMENT BELOW IF YOU NEED TO CHANGE TREATMENT LABELS
+old_treat = unique(sample_data(otu_norm_subset)$treatment)
+new_treat = c("non-EU-", "PC", "EU", "non-EU+")
+sample_data(otu_norm_subset)$treatment = new_treat[match(sample_data(otu_norm_subset)$treatment, old_treat)]
+sample_data(otu_norm_subset)$treatment
 
 distances = distance(otu_norm_subset, method="bray", type = "samples")
 dd = dist2list(distances, tri = FALSE)
@@ -195,7 +200,7 @@ for (k in steps) {
   
   fname = paste("mds_plot_bray-curtis_ellipse_", config$suffix, "_", k , ".png")
   to_save[[paste("beta_div_plot", k, sep="_")]] = g
-  ggsave(filename = file.path(prj_folder, analysis_folder, "figures", fname), plot = g, device = "png")
+  ggsave(filename = file.path(prjfolder, config$analysis_folder, "figures", fname), plot = g, device = "png")
 }
 
 
@@ -229,3 +234,4 @@ fname = file.path(outdir, fname)
 save(to_save, file = fname)
 
 print("DONE!")
+
