@@ -33,20 +33,20 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/suini_bontempo",
-    analysis_folder = "Analysis/micca/results_zinc_caecum",
+    prjfolder = "Documents/moroni/capre/delower",
+    analysis_folder = "Analysis/results",
     otu_norm_file = "otu_norm_CSS.csv",
-    conf_file = "Config/caecum_mapping.csv",
-    suffix = "caecum_porous_zinc",
-    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    conf_file = "Config/mapping_file.csv",
+    suffix = "goat_milk",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
-    project = "Zn poroso",
-    sample_column = "id",
-    treatment_column = "treatment",
+    project = "",
+    sample_column = "sample",
+    treatment_column = "Antibiotic",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    exp_levels = paste(c("CTR","T1","T2","T3"), collapse = ","),
+    exp_levels = paste(c("Treated", "Not treated"), collapse = ","),
     force_overwrite = FALSE
   ))
 }
@@ -66,6 +66,8 @@ exp_levels = strsplit(config$exp_levels, split = ",")[[1]]
 
 ## read metadata
 metadata = fread(file.path(prjfolder, config$conf_file))
+# if(config$treatment_column != "treatment" & "treatment" %in% names(metadata)) metadata <- rename(metadata, secondary_treatment = treatment)
+if(config$treatment_column != "treatment" & "treatment" %in% names(metadata)) metadata$treatment <- NULL
 metadata <- metadata |> rename(`sample-id` = !!config$sample_column, treatment = !!config$treatment_column)
 
 if (config$project != "") metadata <- filter(metadata, project == !!config$project)
@@ -143,6 +145,13 @@ fwrite(x = arrange(D, timepoint, treatment, desc(avg)), file = fname, sep = ",")
 to_save <- list("phylum_relabund"=D)
 
 ## F:B ratio
+names(otus)
+
+## subset otu table (only samples present in the mapping file)
+vec <- c(TRUE,vec,rep(TRUE,7))
+otus <- as.data.frame(otus)
+otus <- otus[,vec]
+
 temp <- otus |>
   select(-c(tax_id,Kingdom, Class, Order, Family, Genus, Species)) |>
   gather(key = "sample", value = "counts", -c("Phylum")) |>
