@@ -46,7 +46,7 @@ if (length(args) >= 1) {
     treatment_column = "Antibiotic",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    exp_levels = paste(c("Treated", "Not treated"), collapse = ","),
+    exp_levels = paste(c("Not treated", "Treated"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !!
     force_overwrite = FALSE
   ))
 }
@@ -241,11 +241,7 @@ mO <- otus |>
 
 temp = select(metadata, c(sample, treatment, timepoint))
 mO <- mO %>% inner_join(temp, by = c("sample" = "sample"))
-
-## model y = mu + type + treatment + e
-# mO$treatment <- factor(mO$treatment, levels = c("CTR", "T1", "T2", "T3"))
-# mO$treatment <- factor(mO$treatment, levels = c("Controllo", "Lupini"))
-mO$treatment <- factor(mO$treatment, levels = exp_levels)
+mO$treatment = factor(mO$treatment, levels = exp_levels)
 
 dd <- mO |>
   group_by(Genus, treatment, timepoint) |>
