@@ -19,15 +19,48 @@ library("data.table")
 library("metagenomeSeq")
 
 ## PARAMETERS
+args = commandArgs(trailingOnly=TRUE)
+if (length(args) >= 1) {
+  
+  #loading the parameters
+  source(args[1])
+  # source("Analysis/hrr/config.R")
+  
+} else {
+  #this is the default configuration, used for development and debug
+  writeLines('Using default config')
+  
+  #this dataframe should be always present in config files, and declared
+  #as follows
+  config = NULL
+  config = rbind(config, data.frame(
+    #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
+    #genotypes = "Analysis/hrr/goat_thin.ped",
+    repo = "Documents/cremonesi/metabarcoding",
+    prjfolder = "Documents/cremonesi/nucleo_bro",
+    analysis_folder = "Analysis/micca",
+    fname = "filtered_otu/otu_table_filtered.biom",
+    conf_file = "Config/mapping_file.csv",
+    suffix = "nucleo_bro",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    min_tot_n = 15,
+    min_sample = 3,
+    project = "ZnO poroso",
+    treatment_column = "treatment",
+    sample_column = "sample",
+    subset_group = "", ## subset data by sample variable (e.g. experiment, group, sex, etc.),
+    force_overwrite = FALSE
+  ))
+}
+
 HOME <- Sys.getenv("HOME")
-repo = file.path(HOME, "Documents/cremonesi/metabarcoding")
-prj_folder = file.path(HOME, "Documents/moroni/capre/delower")
-analysis_folder = "Analysis"
-fname = "filtered_otu/otu_table_filtered.biom"
-conf_file = "Config/mapping_file.csv"
-min_tot_counts = 15 ## minimum number of total counts per sample to be included in the analysis
-outdir = file.path(analysis_folder,"results")
-subset_group = "" ## subset data by sample variable (e.g. experiment, group, sex, etc.)
+repo = file.path(HOME, config$repo)
+prjfolder = file.path(HOME, config$prjfolder)
+analysis_folder = file.path(prjfolder,config$analysis_folder)
+fname = config$fname
+
+config_fname = file.path(analysis_folder, "import_phyloseq.config.r")
+fwrite(x = config, file = config_fname)
 
 # source(file.path(prj_folder, repo, "r_scripts/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
 # source(file.path(prj_folder, repo, "r_scripts/phyloseq_transform.R")) ## from: https://github.com/vmikk/metagMisc/
@@ -36,10 +69,12 @@ source(file.path(repo, "support_functions/phyloseq_transform.R")) ## from: https
 
 writeLines(" - reading the filtered (OTU-wise) biom file into phyloseq")
 ## both the OTU table and the taxonomic classification are available from the biom file (qiime 1.9)
-biom_otu_tax <- phyloseq::import_biom(BIOMfilename = file.path(prj_folder,analysis_folder,fname))
+biom_otu_tax <- phyloseq::import_biom(BIOMfilename = file.path(analysis_folder,fname))
+# otu = otu_table(biom_otu_tax, taxa_are_rows = TRUE)
+# ncol(otu)
 
 writeLines(" - removing samples with too few total counts")
-biom_otu_tax = prune_samples(sample_sums(biom_otu_tax) >= min_tot_counts, biom_otu_tax)
+biom_otu_tax = prune_samples(sample_sums(biom_otu_tax) >= config$min_tot_n, biom_otu_tax)
 
 otu = otu_table(biom_otu_tax, taxa_are_rows = TRUE)
 taxa = tax_table(biom_otu_tax)
@@ -57,7 +92,7 @@ print(head(taxa))
 
 ## metadata
 writeLines(" - reading the metadata")
-metadata = fread(file.path(prj_folder,conf_file))
+metadata = fread(file.path(prjfolder, config$conf_file))
 #metadata = metadata |> rename(`sample-id` = id) |> relocate(`sample-id`)
 names(metadata)[1] <- "sample-id"
 metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") 
@@ -73,9 +108,10 @@ writeLines(" - add metadata to the phyloseq object")
 samples = sample_data(metadata)
 otu_tax_sample = phyloseq(otu,taxa,samples)
 sample_data(otu_tax_sample) |> head()
+sample_data(otu_tax_sample) |> nrow()
 
 ## subset data if needed
-if (!(is.null(subset_group) | subset_group == "")) {
+if (!(is.null(config$subset_group) | config$subset_group == "")) {
   
   print(paste("subsetting data by", subset_group))
   otu_tax_sample <- subset_samples(otu_tax_sample, experiment == subset_group)
@@ -85,9 +121,10 @@ if (!(is.null(subset_group) | subset_group == "")) {
 
 ## remove samples if treatment or timepoint is missing
 otu_tax_sample <- subset_samples(otu_tax_sample, !(is.na(treatment) | is.na(timepoint)))
+sample_data(otu_tax_sample) |> nrow()
 
 ## save phyloseq object
-dir.create(file.path(prj_folder, outdir), showWarnings = FALSE)
-fname = file.path(prj_folder, outdir, "phyloseq.RData")
+dir.create(file.path(analysis_folder), showWarnings = FALSE)
+fname = file.path(analysis_folder, "phyloseq.RData")
 save(otu_tax_sample, file = fname)
 
