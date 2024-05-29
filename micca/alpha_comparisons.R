@@ -26,28 +26,29 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/suini_bontempo",
-    analysis_folder = "Analysis/micca/results_zinc_caecum",
-    conf_file = "Config/caecum_mapping.csv",
-    suffix = "caecum_porous_zinc",
-    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    prjfolder = "Documents/moroni/capre/delower",
+    analysis_folder = "Analysis/results",
+    conf_file = "Config/mapping_file.csv",
+    suffix = "goat_milk",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
-    project = "Zn poroso",
-    treatment_column = "treatment",
-    sample_column = "id",
+    project = "",
+    treatment_column = "Antibiotic",
+    sample_column = "sample",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
     force_overwrite = FALSE
   ))
 }
 
+
 HOME <- Sys.getenv("HOME")
 repo = file.path(HOME, config$repo)
 prjfolder = file.path(HOME, config$prjfolder)
 outdir = file.path(prjfolder,config$analysis_folder)
 
-fname = file.path(outdir, "beta_by_group.config.r")
+fname = file.path(outdir, "alpha_comparison.config.r")
 fwrite(x = config, file = fname)
 
 ## treatment levels as in the metadata file
@@ -56,6 +57,10 @@ grouping_variable2 = config$grouping_variable2
 
 ## read metadata
 metadata = fread(file.path(prjfolder, config$conf_file))
+if (config$treatment_column != "treatment" & sum(grepl(pattern = "treatment", names(metadata))) >= 1) {
+  
+  metadata <- select(metadata, -treatment)
+}
 metadata <- metadata |> rename('sample-id' = !!config$sample_column, treatment = !!config$treatment_column)
 
 if (config$project != "") metadata <- filter(metadata, project == !!config$project)
@@ -77,6 +82,7 @@ alpha <- select(alpha, -c(se.chao1,se.ACE))
 
 ## reshaping data
 malpha = gather(alpha, key = "metric", value = "value", -c("sample-id",all_of(grouping_variable1),all_of(grouping_variable2)))
+# malpha$treatment = factor(malpha$treatment, levels = c("PC","EU","non-EU+","non-EU-"))
 
 ## alpha div boxplots
 p <- ggplot(malpha, aes(x = .data[[grouping_variable1]], y = value))
@@ -92,12 +98,12 @@ fname = file.path(outdir, "figures", fname)
 ggsave(filename = fname, plot = p, device = "png", width = 7.5, height = 8, dpi = 300)
 
 ## density plots
-q <- ggplot(malpha, aes(y=.data[[grouping_variable2]], x=value, fill=.data[[grouping_variable2]])) +
+q <- ggplot(malpha, aes(y=.data[[grouping_variable2]], x=value, fill=.data[[grouping_variable1]])) +
   geom_density_ridges(scale=0.9, alpha = 0.5) +
-  theme(legend.position="none") + facet_grid(.data[[grouping_variable1]]~metric, scales = "free")
+  theme(legend.position="none") + facet_grid(.data[[grouping_variable2]]~metric, scales = "free")
 # q
 
-q <- ggplot(malpha, aes(y=.data[[grouping_variable1]], x=value, fill=.data[[grouping_variable2]])) +
+q <- ggplot(malpha, aes(y=.data[[grouping_variable2]], x=value, fill=.data[[grouping_variable1]])) +
   geom_density_ridges(scale=0.9, alpha = 0.5) +
   theme(legend.position="none") + facet_wrap(~metric, scales = "free")
 # q
@@ -219,16 +225,16 @@ df$term = gsub("\\.data\\[*\"","",df$term)
 df$term = gsub("\\]","",df$term)
 df$term = gsub("\"","",df$term)
 
-d <- data.frame(
-  idx = c(1, 1, 1, 2, 2, 2, 3, 3, 3),
-  value = c(1, 2, 3, 10, 11, 12, 9, 10, 11),
-  category = rep(c("a", "b", "c"), 3),
-  stringsAsFactors = FALSE
-)
-
-# Highlight the lines whose max values are larger than 10
-ggplot(d, aes(idx, value, colour = category)) +
-  geom_line() + gghighlight(max(value) > 10)
+# d <- data.frame(
+#   idx = c(1, 1, 1, 2, 2, 2, 3, 3, 3),
+#   value = c(1, 2, 3, 10, 11, 12, 9, 10, 11),
+#   category = rep(c("a", "b", "c"), 3),
+#   stringsAsFactors = FALSE
+# )
+# 
+# # Highlight the lines whose max values are larger than 10
+# ggplot(d, aes(idx, value, colour = category)) +
+#   geom_line() + gghighlight(max(value) > 10)
 
 w0 <- ggplot(df, aes(x=term, y=p.value, colour = metric))
 w0 <- w0 + geom_point(position=position_dodge(width = 0.5)) 
