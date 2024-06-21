@@ -33,20 +33,20 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/moroni/capre/delower",
-    analysis_folder = "Analysis/results",
+    prjfolder = "Documents/cremonesi/tamponi_vaginali",
+    analysis_folder = "Analysis",
     otu_norm_file = "otu_norm_CSS.csv",
     conf_file = "Config/mapping_file.csv",
-    suffix = "goat_milk",
+    suffix = "tamp_vag",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
-    sample_column = "sample",
-    treatment_column = "Antibiotic",
+    sample_column = "id",
+    treatment_column = "treatment",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    exp_levels = paste(c("Not treated", "Treated"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !!
+    exp_levels = paste(c("D", "A", "B", "C"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !!
     force_overwrite = FALSE
   ))
 }
@@ -172,7 +172,7 @@ to_save[["fb_res"]] = fb
 p1 <- ggplot(filter(fb, FB != Inf), aes(x = FB, y = treatment, fill = treatment)) 
 p1 <- p1 + geom_density_ridges(aes(point_color = treatment, point_fill = treatment, point_shape = treatment),
                                alpha = .2, point_alpha = 1, jittered_points = TRUE) 
-p1 <- p1 + facet_wrap(~timepoint)
+p1 <- p1 + facet_wrap(~timepoint, scales = "free")
 p1 <- p1 + scale_point_color_hue(l = 40)
 p1 <- p1 + scale_discrete_manual(aesthetics = "point_shape", values = (seq(1,length(exp_levels))+20))
 p1
@@ -354,6 +354,34 @@ to_save[["lm_significant_stats"]] = genus_stats
 # ggsave(filename = fname, plot = g1, device = "png", width = 7.5, height = 7)
 # 
 # to_save[["significant_genus_stats"]] = genus_stats
+
+#################################
+### MODEL with time and treatment
+#################################
+D <- mO %>%
+  group_by(Genus) |>
+  do(tidy(lm(counts ~ .data[[config$grouping_variable2]] + .data[[config$grouping_variable1]], data=.))) %>%
+  filter(term != "(Intercept)")
+
+D$term <- gsub("treatment","",D$term)
+D$term <- gsub("timepoint","",D$term)
+D$term <- gsub("\\.data.*]]","",D$term)
+# D$term <- gsub("timepoint","",D$term)
+
+dtbl <- DT::datatable(D, options = list(pageLength=100)) %>% 
+  formatStyle('p.value', backgroundColor = styleInterval(0.05, c('yellow', 'white')))
+
+## saving HTML file with DT::datatable() output
+fname = paste("significant_otus_DT_datatable_time+treat_", config$suffix, ".html", sep="")
+fname = file.path(outdir, "tables", fname)
+DT::saveWidget(dtbl, fname)
+
+
+fname = paste("significant_otus_treatment_across_time_", config$suffix, ".csv", sep="")
+fname = file.path(outdir, "tables", fname)
+filter(D, p.value <= 0.05) %>% fwrite(file = fname, sep = ",", col.names = TRUE)
+
+
 
 ########################################
 ## MANUALLY SET THE X VARIABLE IN AOV()
