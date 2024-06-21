@@ -38,16 +38,16 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/nucleo_bro",
-    analysis_folder = "Analysis/micca",
+    prjfolder = "Documents/cremonesi/tamponi_vaginali",
+    analysis_folder = "Analysis",
     conf_file = "Config/mapping_file.csv",
-    suffix = "nucleo_bro",
+    suffix = "tamp_vag",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
     treatment_column = "treatment",
-    sample_column = "sample",
+    sample_column = "id",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
     force_overwrite = FALSE
@@ -146,7 +146,10 @@ ggsave(filename = file.path(outdir, "figures","mds_plot_bray_curtis.png"), plot 
 
 writeLines(" - write out distance matrix")
 dd = dist2list(distances, tri = FALSE)
-dx = spread(dd, key = "col", value = "value")
+sample_order = gtools::mixedsort(as.character(unique(dd$row)), decreasing = TRUE)
+dd$row = factor(dd$row, levels = sample_order)
+dd$col = factor(dd$col, levels = sample_order)
+dx <- dd |> pivot_wider(names_from = "col", values_from = "value")
 fwrite(x = dx, file = file.path(outdir, "bray_curtis_distances.csv"))
 
 ## euclidean
@@ -158,14 +161,14 @@ ggsave(filename = file.path(outdir, "figures", "mds_plot_euclidean.png"), plot =
 
 writeLines(" - write out euclidean distance matrix")
 dd = dist2list(distances, tri = FALSE)
-dx = spread(dd, key = "col", value = "value")
+dx <- dd |> pivot_wider(names_from = "col", values_from = "value")
 fwrite(x = dx, file = file.path(outdir, "euclidean_distances.csv"))
 
 ### add tree ###
 random_tree = rtree(ntaxa((otu_tax_sample_norm)), rooted=TRUE, tip.label=taxa_names(otu_tax_sample_norm))
 otu_norm_tree = merge_phyloseq(otu_tax_sample_norm, random_tree)
 # plot_tree(otu_norm_tree, color="treatment", label.tips="taxa_names", ladderize="left", plot.margin=0.3)
-plot_tree(otu_norm_tree, color="Phylum", shape=grouping_variable1, size="abundance")
+# plot_tree(otu_norm_tree, color="Phylum", shape=grouping_variable1, size="abundance")
 
 ## unifrac
 writeLines(" - calculate Unifrac distances")
@@ -176,19 +179,19 @@ p <- plot_ordination(biom1, iMDS, color=grouping_variable1, shape=grouping_varia
 
 writeLines(" - write out Unifrac distance matrix")
 dd = dist2list(distances, tri = FALSE)
-dx = spread(dd, key = "col", value = "value")
+dx <- dd |> pivot_wider(names_from = "col", values_from = "value")
 fwrite(x = dx, file = file.path(outdir, "unifrac_distances.csv"))
 
 ## weighted unifrac
 writeLines(" - calculate weighted Unifrac distances")
 distances = distance(otu_norm_tree, method="wunifrac", type = "samples")
 iMDS  <- ordinate(otu_norm_tree, "MDS", distance=distances)
-p <- plot_ordination(biom1, iMDS, color=grouping_variable1, shape=grouping_variable2)
+p <- plot_ordination(otu_tax_sample_norm, iMDS, color=grouping_variable1, shape=grouping_variable2)
 # ggsave(filename = file.path(prj_folder, analysis_folder, "figures","mds_plot_weighted_unifrac.png"), plot = p, device = "png")
 
 writeLines(" - write out weighted Unifrac distance matrix")
 dd = dist2list(distances, tri = FALSE)
-dx = spread(dd, key = "col", value = "value")
+dx <- dd |> pivot_wider(names_from = "col", values_from = "value")
 fwrite(x = dx, file = file.path(outdir, "weighted_unifrac_distances.csv"))
 
 
