@@ -26,16 +26,16 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/moroni/capre/delower",
-    analysis_folder = "Analysis/results",
+    prjfolder = "Documents/cremonesi/tamponi_vaginali",
+    analysis_folder = "Analysis",
     conf_file = "Config/mapping_file.csv",
-    suffix = "goat_milk",
+    suffix = "tamp_vag",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
-    treatment_column = "Antibiotic",
-    sample_column = "sample",
+    treatment_column = "treatment",
+    sample_column = "id",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
     force_overwrite = FALSE
@@ -113,6 +113,13 @@ fname = file.path(outdir, "figures", fname)
 ggsave(filename = fname, plot = q, device = "png", width = 5, height = 7)
 
 ### Linear model
+base_treatment = levels(as.factor(alpha$treatment))[4]
+base_timepoint = levels(as.factor(alpha$timepoint))[1]
+
+treats = unique(malpha$treatment)
+treats = c(base_treatment, as.character(treats[treats != base_treatment]))
+malpha$treatment = factor(malpha$treatment, levels = treats)
+
 if (config$nfactors == 1) {
   
   D <- malpha %>%
@@ -162,9 +169,6 @@ avg_timepoint <- malpha |>
   group_by(metric, timepoint) |>
   summarise(avg = mean(value)) |>
   rename(term = timepoint)
-
-base_treatment = levels(as.factor(alpha$treatment))[1]
-base_timepoint = levels(as.factor(alpha$timepoint))[1]
 
 temp <- avg_timepoint |>
   rename(baseline = avg) |>
