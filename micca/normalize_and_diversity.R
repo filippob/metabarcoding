@@ -24,8 +24,14 @@ args = commandArgs(trailingOnly=TRUE)
 if (length(args) >= 1) {
   
   #loading the parameters
-  source(args[1])
-  # source("Analysis/hrr/config.R")
+  if (file_ext(args[1]) %in% c("r","R")) {
+    
+    source(args[1])
+    # source("Analysis/hrr/config.R")
+  } else {
+    
+    load(args[1])
+  }
   
 } else {
   #this is the default configuration, used for development and debug
@@ -38,16 +44,16 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/tamponi_vaginali",
-    analysis_folder = "Analysis",
+    prjfolder = "Documents/cremonesi/nucleo_bro",
+    analysis_folder = "Analysis/micca",
     conf_file = "Config/mapping_file.csv",
-    suffix = "tamp_vag",
+    suffix = "nucleo_bro",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
     treatment_column = "treatment",
-    sample_column = "id",
+    sample_column = "sample",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
     force_overwrite = FALSE
@@ -59,9 +65,8 @@ repo = file.path(HOME, config$repo)
 prjfolder = file.path(HOME, config$prjfolder)
 outdir = file.path(prjfolder,config$analysis_folder)
 
-fname = file.path(outdir, "normalise_diversity.config.r")
-fwrite(x = config, file = fname)
-
+fname = file.path(outdir, "normalise_diversity.config.RData")
+save(config, file = config_fname)
 
 ## treatment levels as in the metadata file
 grouping_variable1 = config$grouping_variable1

@@ -13,6 +13,7 @@
 
 ## SET UP
 library("ape")
+library("tools")
 library("phyloseq")
 library("tidyverse")
 library("data.table")
@@ -23,9 +24,15 @@ args = commandArgs(trailingOnly=TRUE)
 if (length(args) >= 1) {
   
   #loading the parameters
-  source(args[1])
-  # source("Analysis/hrr/config.R")
-  
+  if (file_ext(args[1]) %in% c("r","R")) {
+    
+    source(args[1])
+    # source("Analysis/hrr/config.R")
+  } else {
+    
+    load(args[1])
+  }
+
 } else {
   #this is the default configuration, used for development and debug
   writeLines('Using default config')
@@ -45,7 +52,7 @@ if (length(args) >= 1) {
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
-    project = "ZnO poroso",
+    project = "", ## USE ONLY FOR SUBSETTING !!
     treatment_column = "treatment",
     sample_column = "sample",
     subset_group = "", ## subset data by sample variable (e.g. experiment, group, sex, etc.),
@@ -59,8 +66,8 @@ prjfolder = file.path(HOME, config$prjfolder)
 analysis_folder = file.path(prjfolder,config$analysis_folder)
 fname = config$fname
 
-config_fname = file.path(analysis_folder, "import_phyloseq.config.r")
-fwrite(x = config, file = config_fname)
+config_fname = file.path(analysis_folder, "import_phyloseq.config.RData")
+save(config, file = config_fname)
 
 # source(file.path(prj_folder, repo, "r_scripts/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
 # source(file.path(prj_folder, repo, "r_scripts/phyloseq_transform.R")) ## from: https://github.com/vmikk/metagMisc/

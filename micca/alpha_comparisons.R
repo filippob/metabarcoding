@@ -12,8 +12,14 @@ args = commandArgs(trailingOnly=TRUE)
 if (length(args) >= 1) {
   
   #loading the parameters
-  source(args[1])
-  # source("Analysis/hrr/config.R")
+  if (file_ext(args[1]) %in% c("r","R")) {
+    
+    source(args[1])
+    # source("Analysis/hrr/config.R")
+  } else {
+    
+    load(args[1])
+  }
   
 } else {
   #this is the default configuration, used for development and debug
@@ -26,18 +32,20 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/tamponi_vaginali",
-    analysis_folder = "Analysis",
+    prjfolder = "Documents/cremonesi/nucleo_bro",
+    analysis_folder = "Analysis/micca",
     conf_file = "Config/mapping_file.csv",
-    suffix = "tamp_vag",
+    suffix = "nucleo_bro",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
-    project = "",
+    project = "", ##! use only for subsetting
     treatment_column = "treatment",
-    sample_column = "id",
+    sample_column = "sample",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
+    base_treatment = 1, ## reference level within timepoint (e.g. control)
+    base_timepoint = 1, ## reference level within treatment (e.g. T0)
     force_overwrite = FALSE
   ))
 }
@@ -48,8 +56,8 @@ repo = file.path(HOME, config$repo)
 prjfolder = file.path(HOME, config$prjfolder)
 outdir = file.path(prjfolder,config$analysis_folder)
 
-fname = file.path(outdir, "alpha_comparison.config.r")
-fwrite(x = config, file = fname)
+fname = file.path(outdir, "alpha_comparison.config.RData")
+save(config, file = fname)
 
 ## treatment levels as in the metadata file
 grouping_variable1 = config$grouping_variable1
@@ -113,8 +121,8 @@ fname = file.path(outdir, "figures", fname)
 ggsave(filename = fname, plot = q, device = "png", width = 5, height = 7)
 
 ### Linear model
-base_treatment = levels(as.factor(alpha$treatment))[4]
-base_timepoint = levels(as.factor(alpha$timepoint))[1]
+base_treatment = levels(as.factor(alpha$treatment))[config$base_treatment]
+base_timepoint = levels(as.factor(alpha$timepoint))[config$base_timepoint]
 
 treats = unique(malpha$treatment)
 treats = c(base_treatment, as.character(treats[treats != base_treatment]))
@@ -350,3 +358,4 @@ fname = paste("alpha_results_", config$suffix, ".RData", sep="")
 fname = file.path(outdir, fname)
 
 save(to_save, file = fname)
+
