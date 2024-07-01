@@ -15,8 +15,14 @@ args = commandArgs(trailingOnly=TRUE)
 if (length(args) >= 1) {
   
   #loading the parameters
-  source(args[1])
-  # source("Analysis/hrr/config.R")
+  if (file_ext(args[1]) %in% c("r","R")) {
+    
+    source(args[1])
+    # source("Analysis/hrr/config.R")
+  } else {
+    
+    load(args[1])
+  }
   
 } else {
   #this is the default configuration, used for development and debug
@@ -27,14 +33,14 @@ if (length(args) >= 1) {
   config = NULL
   config = rbind(config, data.frame(
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/suini_bontempo",
-    analysis_folder = "Analysis/micca/results_zinc_caecum",
-    conf_file = "Config/caecum_mapping.csv",
-    suffix = "caecum_porous_zinc",
-    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    prjfolder = "Documents/cremonesi/nucleo_bro",
+    analysis_folder = "Analysis/micca",
+    conf_file = "Config/mapping_file.csv",
+    suffix = "nucleo_bro",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
-    project = "Zn poroso",
+    project = "",
     treatment_column = "treatment",
     force_overwrite = FALSE
   ))
@@ -45,8 +51,8 @@ repo = file.path(HOME, config$repo)
 prjfolder = file.path(HOME, config$prjfolder)
 outdir = file.path(prjfolder,config$analysis_folder)
 
-fname = file.path(outdir, "beta_by_group.config.r")
-fwrite(x = config, file = fname)
+fname = file.path(outdir, "beta_by_group.config.RData")
+save(config, file = fname)
 
 source(file.path(repo, "support_functions/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
 source(file.path(repo, "support_functions/phyloseq_transform.R")) ## from: https://github.com/vmikk/metagMisc/
@@ -109,10 +115,10 @@ metadata <- as_tibble(metadata)
 metadata <- metadata |> rename('sample-id' = !!config$sample_column, treatment = !!config$treatment_column)
 
 ## UNCOMMENT BELOW IF YOU NEED TO CHANGE TREATMENT LABELS
-old_treat = unique(sample_data(otu_norm_subset)$treatment)
-new_treat = c("non-EU-", "PC", "EU", "non-EU+")
-sample_data(otu_norm_subset)$treatment = new_treat[match(sample_data(otu_norm_subset)$treatment, old_treat)]
-sample_data(otu_norm_subset)$treatment
+# old_treat = unique(sample_data(otu_norm_subset)$treatment)
+# new_treat = c("non-EU-", "PC", "EU", "non-EU+")
+# sample_data(otu_norm_subset)$treatment = new_treat[match(sample_data(otu_norm_subset)$treatment, old_treat)]
+# sample_data(otu_norm_subset)$treatment
 
 distances = distance(otu_norm_subset, method="bray", type = "samples")
 dd = dist2list(distances, tri = FALSE)

@@ -19,8 +19,14 @@ args = commandArgs(trailingOnly=TRUE)
 if (length(args) >= 1) {
   
   #loading the parameters
-  source(args[1])
-  # source("Analysis/hrr/config.R")
+  if (file_ext(args[1]) %in% c("r","R")) {
+    
+    source(args[1])
+    # source("Analysis/hrr/config.R")
+  } else {
+    
+    load(args[1])
+  }
   
 } else {
   #this is the default configuration, used for development and debug
@@ -33,20 +39,20 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/tamponi_vaginali",
-    analysis_folder = "Analysis",
+    prjfolder = "Documents/cremonesi/nucleo_bro",
+    analysis_folder = "Analysis/micca",
     otu_norm_file = "otu_norm_CSS.csv",
     conf_file = "Config/mapping_file.csv",
-    suffix = "tamp_vag",
+    suffix = "nucleo_bro",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
-    sample_column = "id",
+    sample_column = "sample",
     treatment_column = "treatment",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    exp_levels = paste(c("D", "A", "B", "C"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !!
+    exp_levels = paste(c("CTR", "T1", "T2"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !!
     force_overwrite = FALSE
   ))
 }
@@ -57,8 +63,8 @@ prjfolder = file.path(HOME, config$prjfolder)
 outdir = file.path(prjfolder,config$analysis_folder)
 otu_norm_fname = file.path(prjfolder, config$analysis_folder, config$otu_norm_file)
 
-fname = file.path(outdir, "taxa_abundance.config.r")
-fwrite(x = config, file = fname)
+fname = file.path(outdir, "taxa_abundance.config.RData")
+save(config, file = fname)
 
 ## treatment levels as in the metadata file
 print(config$exp_levels)
