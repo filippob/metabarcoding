@@ -44,12 +44,12 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/nucleo_bro",
-    analysis_folder = "Analysis/micca",
+    prjfolder = "Documents/cremonesi/sonia_andres_cow_gut_microbiome",
+    analysis_folder = "Analysis",
     fname = "filtered_otu/otu_table_filtered.biom",
     conf_file = "Config/mapping_file.csv",
-    suffix = "nucleo_bro",
-    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    suffix = "cow_feces",
+    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "", ## USE ONLY FOR SUBSETTING !!
@@ -107,7 +107,7 @@ if(is.numeric(metadata$`sample-id`)) metadata$`sample-id` = paste("sample",metad
 metadata <- as.data.frame(metadata)
 row.names(metadata) <- metadata$`sample-id`
 metadata$`sample-id` <- NULL
-metadata$timepoint = as.factor(metadata$timepoint)
+if("timepoint" %in% names(metadata)) metadata$timepoint = as.factor(metadata$timepoint)
 metadata$treatment = as.factor(metadata$treatment)
 
 ## read into phyloseq
@@ -127,7 +127,8 @@ if (!(is.null(config$subset_group) | config$subset_group == "")) {
 }
 
 ## remove samples if treatment or timepoint is missing
-otu_tax_sample <- subset_samples(otu_tax_sample, !(is.na(treatment) | is.na(timepoint)))
+if("timepoint" %in% names(metadata)) otu_tax_sample <- subset_samples(otu_tax_sample, !(is.na(timepoint)))
+otu_tax_sample <- subset_samples(otu_tax_sample, !(is.na(treatment)))
 sample_data(otu_tax_sample) |> nrow()
 
 ## save phyloseq object
