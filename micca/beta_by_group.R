@@ -33,11 +33,11 @@ if (length(args) >= 1) {
   config = NULL
   config = rbind(config, data.frame(
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/nucleo_bro",
-    analysis_folder = "Analysis/micca",
+    prjfolder = "Documents/cremonesi/sonia_andres_cow_gut_microbiome",
+    analysis_folder = "Analysis",
     conf_file = "Config/mapping_file.csv",
-    suffix = "nucleo_bro",
-    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    suffix = "cow_feces",
+    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
@@ -51,7 +51,8 @@ repo = file.path(HOME, config$repo)
 prjfolder = file.path(HOME, config$prjfolder)
 outdir = file.path(prjfolder,config$analysis_folder)
 
-fname = file.path(outdir, "beta_by_group.config.RData")
+fname = paste("beta_by_group.config_",config$suffix,".RData", sep="")
+fname = file.path(outdir, fname)
 save(config, file = fname)
 
 source(file.path(repo, "support_functions/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
@@ -85,7 +86,8 @@ if(nchar(config$project) > 0) {
 } else otu_norm_subset <- otu_tax_sample_norm
 
 ## changing treatment column
-# sample_data(otu_norm_subset)$treatment <- dplyr::pull(x, !!config$treatment_column )
+x <- sample_data(otu_tax_sample_norm)
+sample_data(otu_norm_subset)$treatment <- dplyr::pull(x, !!config$treatment_column )
 sample_data(otu_norm_subset) |> head() |> print()
 
 steps = unique(sample_data(otu_norm_subset)$timepoint)
@@ -95,6 +97,17 @@ steps = unique(sample_data(otu_norm_subset)$timepoint)
 ###############
 writeLines(" - beta diversity: distance matrices")
 writeLines(" - available distance metrics")
+
+if (steps == "" || is.null(steps)) {
+  
+  print(paste(" - calculate Bray-Curtis distances for ", config$treatment_column))
+  distances = distance(otu_norm_subset, method="bray", type = "samples")
+  iMDS  <- ordinate(otu_norm_subset, "MDS", distance=distances)
+  p <- plot_ordination(otu_norm_subset, iMDS, color="treatment")
+  fname = paste("mds_plot_bray_curtis_", config$suffix, "_treatment.png")
+  ggsave(filename = file.path(prjfolder, config$analysis_folder, "figures", fname), plot = p, device = "png")
+}
+
 ## bray-curtis
 for (k in steps) {
   
@@ -125,7 +138,11 @@ dd = dist2list(distances, tri = FALSE)
 dx = spread(dd, key = "col", value = "value")
 
 # temp = dplyr::select(metadata, c(`sample-id`,timepoint,Antibiotic)) |> rename(treatment = Antibiotic)
-temp = dplyr::select(metadata, c(`sample-id`,timepoint,treatment))
+if(config$nfactors > 1) {
+  
+  temp = dplyr::select(metadata, c(`sample-id`,timepoint,treatment))
+} else temp = dplyr::select(metadata, c(`sample-id`,treatment))
+
 dx <- dx %>% inner_join(temp, by = c("row" = "sample-id"))
 
 temp = select(dx,-row)
@@ -184,6 +201,29 @@ if (config$nfactors > 1) {
 
 library("ggpubr")
 library("ggfortify")
+
+if (steps == "" || is.null(steps)) {
+  
+  print(paste("processing stratifying variable",config$treatment_column))
+  mtd <- sample_data(otu_norm_subset)
+  distances = distance(otu_norm_subset, method="bray", type = "samples")
+  iMDS  <- ordinate(otu_norm_subset, "MDS", distance=distances)
+  mds_subset <- as_tibble(iMDS$vectors)
+  mds_subset$treatment = mtd$treatment
+  
+  g <- ggscatter(data = mds_subset, x = "Axis.1", y = "Axis.2",
+                 label = NULL,
+                 color = "treatment",
+                 palette = "jco",
+                 size = 1,
+                 ellipse = TRUE,
+                 ellipse.type = "norm",
+                 repel = TRUE)
+  
+  fname = paste("mds_plot_bray-curtis_ellipse_", config$suffix, "_", "treatment" , ".png")
+  to_save[[paste("beta_div_plot", "treatment", sep="_")]] = g
+  ggsave(filename = file.path(prjfolder, config$analysis_folder, "figures", fname), plot = g, device = "png")
+}
 
 for (k in steps) {
   
