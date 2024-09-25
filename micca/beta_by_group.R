@@ -33,15 +33,15 @@ if (length(args) >= 1) {
   config = NULL
   config = rbind(config, data.frame(
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/sonia_andres_cow_gut_microbiome",
-    analysis_folder = "Analysis",
+    prjfolder = "Documents/moroni/capre/delower",
+    analysis_folder = "Analysis/results",
     conf_file = "Config/mapping_file.csv",
-    suffix = "cow_feces",
-    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    suffix = "goat_milk",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
-    treatment_column = "treatment",
+    treatment_column = "Antibiotic",
     force_overwrite = FALSE
   ))
 }
@@ -98,7 +98,7 @@ steps = unique(sample_data(otu_norm_subset)$timepoint)
 writeLines(" - beta diversity: distance matrices")
 writeLines(" - available distance metrics")
 
-if (steps == "" || is.null(steps)) {
+if (all(steps == "") || is.null(steps)) {
   
   print(paste(" - calculate Bray-Curtis distances for ", config$treatment_column))
   distances = distance(otu_norm_subset, method="bray", type = "samples")
@@ -125,6 +125,7 @@ metadata <- sample_data(otu_norm_subset)
 metadata$`sample-id` = row.names(metadata)
 row.names(metadata) <- NULL
 metadata <- as_tibble(metadata)
+if (config$treatment_column != "treatment") metadata$treatment = NULL
 metadata <- metadata |> rename('sample-id' = !!config$sample_column, treatment = !!config$treatment_column)
 
 ## UNCOMMENT BELOW IF YOU NEED TO CHANGE TREATMENT LABELS
@@ -202,7 +203,7 @@ if (config$nfactors > 1) {
 library("ggpubr")
 library("ggfortify")
 
-if (steps == "" || is.null(steps)) {
+if (all(steps == "") || is.null(steps)) {
   
   print(paste("processing stratifying variable",config$treatment_column))
   mtd <- sample_data(otu_norm_subset)
@@ -230,6 +231,7 @@ for (k in steps) {
   print(paste("processing stratifying variable",k))
   temp <- subset_samples(otu_norm_subset, timepoint == k)
   mtd <- sample_data(temp)
+  mtd$treatment = c("TG","CG")[match(mtd$treatment,unique(mtd$treatment))]
   distances = distance(temp, method="bray", type = "samples")
   iMDS  <- ordinate(temp, "MDS", distance=distances)
   mds_subset <- as_tibble(iMDS$vectors)
@@ -242,7 +244,7 @@ for (k in steps) {
                  size = 1,
                  ellipse = TRUE,
                  ellipse.type = "norm",
-                 repel = TRUE)
+                 repel = TRUE) + theme(legend.title=element_blank())
   
   fname = paste("mds_plot_bray-curtis_ellipse_", config$suffix, "_", k , ".png")
   to_save[[paste("beta_div_plot", k, sep="_")]] = g
@@ -264,7 +266,7 @@ if(length(steps) > 1) {
                  size = 1,
                  ellipse = TRUE,
                  ellipse.type = "norm",
-                 repel = TRUE)
+                 repel = TRUE) + theme(legend.title=element_blank())
   
   to_save[["beta_div_plot_timepoint"]] = g
   
