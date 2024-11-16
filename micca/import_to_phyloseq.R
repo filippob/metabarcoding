@@ -44,17 +44,17 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/sonia_andres_cow_gut_microbiome",
+    prjfolder = "Documents/cremonesi/vitelli_microbiome",
     analysis_folder = "Analysis",
     fname = "filtered_otu/otu_table_filtered.biom",
     conf_file = "Config/mapping_file.csv",
-    suffix = "cow_feces",
-    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    suffix = "calf_microbiome",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "", ## USE ONLY FOR SUBSETTING !!
-    treatment_column = "treatment",
-    sample_column = "sample",
+    treatment_column = "Trattamento",
+    sample_column = "sample_id",
     subset_group = "", ## subset data by sample variable (e.g. experiment, group, sex, etc.),
     force_overwrite = FALSE
   ))
@@ -93,7 +93,7 @@ colnames(otu) <- paste("sample-",colnames(otu),sep="")
 print(head(otu))
 
 writeLines(" - change the names of taxonomic levels to Kngdom, Class etc.")
-colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus","Species") #if number does not fit, add "" as blank spaces to solve the problem
+colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus") #if number does not fit, add "" as blank spaces to solve the problem
 # colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus") #from RDP
 print(head(taxa))
 
@@ -102,6 +102,7 @@ writeLines(" - reading the metadata")
 metadata = fread(file.path(prjfolder, config$conf_file))
 #metadata = metadata |> rename(`sample-id` = id) |> relocate(`sample-id`)
 names(metadata)[1] <- "sample-id"
+if (config$treatment_column != "treatment") metadata <- rename(metadata, 'treatment' = !!config$treatment_column)
 metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") 
 if(is.numeric(metadata$`sample-id`)) metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") # in case your sample-id are not only numeric, remove or comment if(is.numeric(metadata$`sample-id`))
 metadata <- as.data.frame(metadata)
