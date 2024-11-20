@@ -312,6 +312,15 @@ if (config$grouping_variable2 != "") {
 mO <- mO %>% inner_join(temp, by = c("sample" = "sample"))
 mO$treatment = factor(mO$treatment, levels = exp_levels)
 
+### Linear model
+base_treatment = levels(as.factor(mO$treatment))[config$base_treatment]
+base_timepoint = levels(as.factor(mO$timepoint))[config$base_timepoint]
+
+treats = unique(mO$treatment)
+treats = c(base_treatment, as.character(treats[treats != base_treatment]))
+mO$treatment = factor(mO$treatment, levels = treats)
+
+
 ### baseline correction
 otu_change <- mO %>%
   arrange(Genus, subject, timepoint) %>%
