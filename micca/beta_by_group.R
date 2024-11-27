@@ -33,15 +33,16 @@ if (length(args) >= 1) {
   config = NULL
   config = rbind(config, data.frame(
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/moroni/capre/delower",
-    analysis_folder = "Analysis/results",
+    prjfolder = "Documents/cremonesi/vitelli_microbiome",
+    analysis_folder = "Analysis",
     conf_file = "Config/mapping_file.csv",
-    suffix = "goat_milk",
+    suffix = "calf_microbiome",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
+    covariates = "Azienda", ## string with covariates separated by a comme
     project = "",
-    treatment_column = "Antibiotic",
+    treatment_column = "treatment",
     force_overwrite = FALSE
   ))
 }
@@ -125,8 +126,18 @@ metadata <- sample_data(otu_norm_subset)
 metadata$`sample-id` = row.names(metadata)
 row.names(metadata) <- NULL
 metadata <- as_tibble(metadata)
+
+if (config$covariates != "") { covariates = unlist(strsplit(config$covariates, split = ",")) 
+} else covariates = NULL
+print(paste("The following covariates are used:", covariates))
+
 if (config$treatment_column != "treatment") metadata$treatment = NULL
+
 metadata <- metadata |> rename('sample-id' = !!config$sample_column, treatment = !!config$treatment_column)
+
+if("timepoint" %in% names(metadata)) {
+  metadata = metadata |> select(c(`sample-id`, treatment, timepoint, all_of(covariates))) |> mutate(treatment = as.factor(treatment))
+} else metadata = metadata |> select(c(`sample-id`, treatment, all_of(covariates))) |> mutate(treatment = as.factor(treatment))
 
 ## UNCOMMENT BELOW IF YOU NEED TO CHANGE TREATMENT LABELS
 # old_treat = unique(sample_data(otu_norm_subset)$treatment)
@@ -141,8 +152,8 @@ dx = spread(dd, key = "col", value = "value")
 # temp = dplyr::select(metadata, c(`sample-id`,timepoint,Antibiotic)) |> rename(treatment = Antibiotic)
 if(config$nfactors > 1) {
   
-  temp = dplyr::select(metadata, c(`sample-id`,timepoint,treatment))
-} else temp = dplyr::select(metadata, c(`sample-id`,treatment))
+  temp = dplyr::select(metadata, c(`sample-id`,timepoint, treatment, all_of(covariates)))
+} else temp = dplyr::select(metadata, c(`sample-id`,treatment, all_of(covariates)))
 
 dx <- dx %>% inner_join(temp, by = c("row" = "sample-id"))
 
@@ -160,10 +171,11 @@ write(x = "PERMANOVA", file = fname)
 
 if (config$nfactors > 1) {
   
-  nvars = config$nfactors
+  nvars = config$nfactors + length(covariates)
   matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
   
-  obj <- adonis2(matx ~ dx$timepoint+dx$treatment, permutations = 1000)
+  covar = paste(gsub(",", "+", config$covariates))
+  obj <- adonis2(matx ~ dx$timepoint+dx$treatment + dx[[covar]], permutations = 1000)
   print(kable(obj))
   # fwrite(x = list(kable(obj)), file = fname, append = TRUE)
   write(x = "ALL DATA", file = fname, append = TRUE)
@@ -176,11 +188,11 @@ if (config$nfactors > 1) {
     
     print(tt)
     vec = (dx$timepoint == tt)
-    temp2 <- dx[vec,c(TRUE,vec,TRUE,TRUE)]
+    temp2 <- dx[vec,c(TRUE,vec,rep(TRUE,nvars))]
     temp1 <- matx[vec,vec]
     
     print(paste("Permanova on the", tt, "subset: comparison between treatments:"))
-    obj <- adonis2(temp1 ~ temp2$treatment, permutations = 1000)
+    obj <- adonis2(temp1 ~ temp2$treatment + temp2[[covar]], permutations = 1000)
     write(x = tt, file = fname, append = TRUE)
     write(x = kable(obj), file = fname, append = TRUE)
     print(kable(obj))
@@ -192,7 +204,7 @@ if (config$nfactors > 1) {
   nvars = config$nfactors
   matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
   
-  obj <- adonis2(matx ~ dx$treatment, permutations = 1000)
+  obj <- adonis2(matx ~ dx$treatment + dx[[covar]], permutations = 1000)
   print(kable(obj))
   write(x = kable(obj), file = fname, append = TRUE)
   
