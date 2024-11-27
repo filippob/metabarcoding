@@ -32,19 +32,20 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/sonia_andres_cow_gut_microbiome",
+    prjfolder = "Documents/cremonesi/vitelli_microbiome",
     analysis_folder = "Analysis",
     conf_file = "Config/mapping_file.csv",
-    suffix = "cow_feces",
-    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    suffix = "calf_microbiome",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "", ##! use only for subsetting
-    treatment_column = "treatment",
-    sample_column = "sample",
-    grouping_variable2 = "",
+    treatment_column = "Trattamento",
+    sample_column = "sample_id",
+    grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    base_treatment = 1, ## reference level within timepoint (e.g. control)
+    covariates = "Azienda", ## string with covariates separated by a comme
+    base_treatment = 2, ## reference level within timepoint (e.g. control)
     base_timepoint = 1, ## reference level within treatment (e.g. T0)
     force_overwrite = FALSE
   ))
@@ -78,9 +79,14 @@ print(head(metadata))
 
 metadata <- mutate(metadata, `sample-id` = as.character(`sample-id`))
 metadata <- metadata |> filter(treatment != "", !is.na(treatment))
+
+if (config$covariates != "") covariates = unlist(strsplit(config$covariates, split = ","))
+print(paste("The following covariates are used:", covariates))
+## select(metadata, c(all_of(covariates))) ## also the following syntax is possible: select(metadata, c(!!covariates))
+
 if("timepoint" %in% names(metadata)) {
-  metadata = metadata |> select(c(`sample-id`, treatment, timepoint)) |> mutate(treatment = as.factor(treatment))
-} else metadata = metadata |> select(c(`sample-id`, treatment)) |> mutate(treatment = as.factor(treatment))
+  metadata = metadata |> select(c(`sample-id`, treatment, timepoint, all_of(covariates))) |> mutate(treatment = as.factor(treatment))
+} else metadata = metadata |> select(c(`sample-id`, treatment, all_of(covariates))) |> mutate(treatment = as.factor(treatment))
 
 ## read alpha div data
 alpha = fread(file.path(prjfolder, config$analysis_folder, "alpha.csv"))
@@ -94,10 +100,15 @@ alpha <- select(alpha, -c(se.chao1,se.ACE))
 
 ## reshaping data
 if (grouping_variable2 != "") {
-  malpha = gather(alpha, key = "metric", value = "value", -c("sample-id",all_of(grouping_variable1),all_of(grouping_variable2)))
-} else malpha = gather(alpha, key = "metric", value = "value", -c("sample-id",all_of(grouping_variable1)))
+  malpha = gather(alpha, key = "metric", value = "value", -c("sample-id",all_of(grouping_variable1),all_of(grouping_variable2), all_of(covariates)))
+} else malpha = gather(alpha, key = "metric", value = "value", -c("sample-id",all_of(grouping_variable1), all_of(covariates)))
 
 # malpha$treatment = factor(malpha$treatment, levels = c("PC","EU","non-EU+","non-EU-"))
+
+temp = malpha %>%
+  dplyr::group_by(timepoint,treatment, metric) %>%
+  dplyr::summarise(N = n(), avg = mean(value))
+
 
 ## alpha div boxplots
 p <- ggplot(malpha, aes(x = .data[[grouping_variable1]], y = value))
@@ -146,24 +157,28 @@ if (config$nfactors == 1) {
   
   D <- malpha %>%
     group_by(metric) %>%
-    do(tidy(lm(value ~ .data[[grouping_variable1]], data = .))) %>%
-    filter(term != "(Intercept)", term != "Residuals")
+    do(tidy(lm(value ~ .data[[grouping_variable1]] + .data[[covariates]], data = .))) %>%
+    filter(term != "(Intercept)", term != "Residuals") |>
+    filter(!str_detect(term, paste(covariates, collapse = "|")))
   
   df <- malpha %>%
     group_by(metric) %>%
-    do(tidy(anova(lm(value ~ .data[[grouping_variable1]], data = .)))) %>%
-    filter(term != "(Intercept)", term != "Residuals")
+    do(tidy(anova(lm(value ~ .data[[grouping_variable1]] + .data[[covariates]], data = .)))) %>%
+    filter(term != "(Intercept)", term != "Residuals") |>
+    filter(!str_detect(term, paste(covariates, collapse = "|")))
 } else {
   
   D <- malpha %>%
     group_by(metric) %>%
-    do(tidy(lm(value ~ .data[[grouping_variable2]] + .data[[grouping_variable1]], data = .))) %>%
-    filter(term != "(Intercept)", term != "Residuals")
+    do(tidy(lm(value ~ .data[[grouping_variable2]] + .data[[grouping_variable1]] + .data[[covariates]], data = .))) %>%
+    filter(term != "(Intercept)", term != "Residuals") |>
+    filter(!str_detect(term, paste0(covariates, collapse = "|")))
   
   df <- malpha %>%
     group_by(metric) %>%
-    do(tidy(anova(lm(value ~ .data[[grouping_variable2]] + .data[[grouping_variable1]], data = .)))) %>%
-    filter(term != "(Intercept)", term != "Residuals")
+    do(tidy(anova(lm(value ~ .data[[grouping_variable2]] + .data[[grouping_variable1]] + .data[[covariates]], data = .)))) %>%
+    filter(term != "(Intercept)", term != "Residuals") |>
+    filter(!str_detect(term, paste(covariates, collapse = "|")))
 }
 
 
@@ -288,6 +303,8 @@ w0 <- w0 + theme(axis.text.x = element_text(angle=0, size = 9),
                axis.title = element_text(size = 11))
 w0
 
+
+D$term <- gsub("Treated","TG",D$term)
 
 w <- ggplot(D, aes(x=term, y=p.value))
 w <- w + geom_jitter(aes(colour=metric), size = 2, width = 0.2)
