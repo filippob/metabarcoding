@@ -80,7 +80,8 @@ print(head(metadata))
 metadata <- mutate(metadata, `sample-id` = as.character(`sample-id`))
 metadata <- metadata |> filter(treatment != "", !is.na(treatment))
 
-if (config$covariates != "") covariates = unlist(strsplit(config$covariates, split = ","))
+if (config$covariates != "") { covariates = unlist(strsplit(config$covariates, split = ",")) 
+} else covariates = NULL
 print(paste("The following covariates are used:", covariates))
 ## select(metadata, c(all_of(covariates))) ## also the following syntax is possible: select(metadata, c(!!covariates))
 
@@ -364,7 +365,7 @@ if("timepoint" %in% names(malpha)) {
   # nest(data = -c(timepoint,metric)) |>
     nest(data = -c(metric, timepoint)) |>
     mutate(
-      fit = map(data, ~ aov(value ~ treatment, data = .x)),
+      fit = map(data, ~ aov(value ~ treatment + .x[[covariates]], data = .x)),
       hsd = map(fit, TukeyHSD),
       tidied = map(hsd, tidy)
     ) |>
@@ -376,7 +377,7 @@ if("timepoint" %in% names(malpha)) {
     # nest(data = -c(timepoint,metric)) |>
     nest(data = -c(metric)) |>
     mutate(
-      fit = map(data, ~ aov(value ~ treatment, data = .x)),
+      fit = map(data, ~ aov(value ~ treatment + .x[[covariates]], data = .x)),
       hsd = map(fit, TukeyHSD),
       tidied = map(hsd, tidy)
     ) |>
