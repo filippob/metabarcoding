@@ -39,20 +39,20 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/sonia_andres_cow_gut_microbiome",
-    analysis_folder = "Analysis",
+    prjfolder = "Documents/moroni/capre/delower",
+    analysis_folder = "Analysis/results",
     otu_norm_file = "otu_norm_CSS.csv",
     conf_file = "Config/mapping_file.csv",
-    suffix = "cow_feces",
-    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    suffix = "goat_milk",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
     sample_column = "sample",
-    treatment_column = "treatment",
-    grouping_variable2 = "",
+    treatment_column = "Antibiotic",
+    grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    exp_levels = paste(c("CTRL", "MET"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !!
+    exp_levels = paste(c("Not treated", "Treated"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !! Not treated,Treated
     force_overwrite = FALSE
   ))
 }
@@ -252,7 +252,7 @@ if (config$grouping_variable2 != "") {
     summarise(tot_sample = sum(counts)) |> 
     mutate(tot = sum(tot_sample), abundance = tot_sample/tot) |>
     group_by(timepoint, treatment, level, taxon) |>
-    summarise(avg_abund = mean(abundance))
+    summarise(avg_abund = mean(abundance), std = sd(abundance))
   
   
   temp$level = factor(temp$level, levels = c("Class","Order","Family","Genus"))
@@ -299,7 +299,7 @@ if (config$grouping_variable2 != "") {
   
   genus_stats <- mO %>% 
     group_by(Genus, treatment, timepoint) %>%
-    summarise(avg = round(mean(counts),3), std = round(sd(counts),3))
+    summarise(avg = round(mean(counts),3), std = round(sd(counts),3), N=n())
 } else {
   
   dd <- mO |>
@@ -309,12 +309,20 @@ if (config$grouping_variable2 != "") {
   
   genus_stats <- mO %>% 
     group_by(Genus, treatment) %>%
-    summarise(avg = round(mean(counts),3), std = round(sd(counts),3))
+    summarise(avg = round(mean(counts),3), std = round(sd(counts),3), N = n())
 }
 
 diff <- genus_stats |> 
-  select(-std) |> 
+  select(-c(std,N)) |> 
   spread(key = "treatment", value = avg)
+
+std <- genus_stats |> 
+  select(-c(avg,N)) |> 
+  spread(key = "treatment", value = std)
+
+sample_size <- genus_stats |> 
+  select(-c(avg,std)) |> 
+  spread(key = "treatment", value = N)
 
 cmb <- combn(exp_levels, 2)
 
@@ -350,6 +358,15 @@ if (config$grouping_variable2 != "") {
     select(-all_of(exp_levels)) |>
     gather(key = "treatment", value = "difference", -c(Genus))
 }
+
+contrasts <- contrasts |> inner_join(std, by = c("Genus", "timepoint")) |>
+  rename(std_cg = `Not treated`, std_tg = Treated)
+
+contrasts <- contrasts |> inner_join(sample_size, by = c("Genus", "timepoint")) |>
+  rename(n_cg = `Not treated`, n_tg = Treated)
+
+contrasts <- contrasts |>
+  mutate(std_err = sqrt((std_cg^2)/n_cg + (std_tg^2)/n_tg))
 
 to_save[["relabund_for_lm"]] = mO
 to_save[["genus_stats"]] = genus_stats
