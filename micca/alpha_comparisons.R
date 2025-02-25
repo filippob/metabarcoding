@@ -32,20 +32,20 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/vitelli_microbiome",
-    analysis_folder = "Analysis",
+    prjfolder = "Documents/cremonesi/luiz",
+    analysis_folder = "Analysis/results",
     conf_file = "Config/mapping_file.csv",
-    suffix = "calf_microbiome",
-    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 15,
-    min_sample = 3,
+    suffix = "rumen",
+    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    min_tot_n = 10,
+    min_sample = 2,
     project = "", ##! use only for subsetting
-    treatment_column = "Trattamento",
+    treatment_column = "treatment",
     sample_column = "sample_id",
-    grouping_variable2 = "timepoint",
+    grouping_variable2 = "",
     grouping_variable1 = "treatment",
-    covariates = "Azienda", ## string with covariates separated by a comme
-    base_treatment = 2, ## reference level within timepoint (e.g. control)
+    covariates = "dose", ## string with covariates separated by a comme
+    base_treatment = 5, ## reference level within timepoint (e.g. control)
     base_timepoint = 1, ## reference level within treatment (e.g. T0)
     force_overwrite = FALSE
   ))
@@ -89,6 +89,7 @@ if("timepoint" %in% names(metadata)) {
   metadata = metadata |> select(c(`sample-id`, treatment, timepoint, all_of(covariates))) |> mutate(treatment = as.factor(treatment))
 } else metadata = metadata |> select(c(`sample-id`, treatment, all_of(covariates))) |> mutate(treatment = as.factor(treatment))
 
+
 ## read alpha div data
 alpha = fread(file.path(prjfolder, config$analysis_folder, "alpha.csv"))
 alpha$`sample-id` = gsub('sample.','',alpha$`sample-id`)
@@ -106,9 +107,9 @@ if (grouping_variable2 != "") {
 
 # malpha$treatment = factor(malpha$treatment, levels = c("PC","EU","non-EU+","non-EU-"))
 
-temp = malpha %>%
-  dplyr::group_by(timepoint,treatment, metric) %>%
-  dplyr::summarise(N = n(), avg = mean(value))
+# temp = malpha %>%
+#   dplyr::group_by(timepoint,treatment, metric) %>%
+#   dplyr::summarise(N = n(), avg = mean(value))
 
 
 ## alpha div boxplots
@@ -118,6 +119,9 @@ p <- p + geom_jitter(aes(color = .data[[grouping_variable1]]), alpha = 0.8, widt
 p <- p + scale_color_manual(values = c("#00AFBB", "#E7B800", "#FC4E07", "green","darkred"))
 if (grouping_variable2 != "") {
   p <- p + facet_grid(metric~.data[[grouping_variable2]], scales = "free")
+} else p <- p + facet_wrap(~metric, scales = "free")
+if (covariates != "" & grouping_variable2 == "") {
+  p <- p + facet_grid(metric~.data[[covariates]], scales = "free")
 } else p <- p + facet_wrap(~metric, scales = "free")
 p <- p + theme(axis.text.x = element_text(angle = 0))
 p
@@ -358,7 +362,7 @@ writeLines(" - making pairwise contrasts between treatments")
 ########################################
 ## MANUALLY SET THE X VARIABLE IN AOV()
 ########################################
-
+  
 if("timepoint" %in% names(malpha)) {
 
   contrasts <- malpha |>
@@ -366,7 +370,7 @@ if("timepoint" %in% names(malpha)) {
     nest(data = -c(metric, timepoint)) |>
     mutate(
       fit = map(data, ~ aov(value ~ treatment + .x[[covariates]], data = .x)),
-      hsd = map(fit, TukeyHSD),
+      hsd = map(fit, ~ TukeyHSD(.x, which = "treatment")),
       tidied = map(hsd, tidy)
     ) |>
     unnest(tidied) |>
@@ -378,7 +382,7 @@ if("timepoint" %in% names(malpha)) {
     nest(data = -c(metric)) |>
     mutate(
       fit = map(data, ~ aov(value ~ treatment + .x[[covariates]], data = .x)),
-      hsd = map(fit, TukeyHSD),
+      hsd = map(fit, ~ TukeyHSD(.x, which = "treatment")),
       tidied = map(hsd, tidy)
     ) |>
     unnest(tidied) |>
