@@ -44,18 +44,19 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/vitelli_microbiome",
+    prjfolder = "Documents/moroni/lettiera",
     analysis_folder = "Analysis",
     fname = "filtered_otu/otu_table_filtered.biom",
     conf_file = "Config/mapping_file.csv",
-    suffix = "calf_microbiome",
+    suffix = "bedding_wk2",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 15,
-    min_sample = 3,
+    min_tot_n = 10,
+    min_sample = 2,
     project = "", ## USE ONLY FOR SUBSETTING !!
-    treatment_column = "Trattamento",
+    treatment_column = "treatment",
     sample_column = "sample_id",
-    subset_group = "", ## subset data by sample variable (e.g. experiment, group, sex, etc.),
+    subset_variable = "week",
+    subset_group = "WEEK2", ## subset data by sample variable (e.g. experiment, group, sex, etc.),
     force_overwrite = FALSE
   ))
 }
@@ -119,10 +120,12 @@ sample_data(otu_tax_sample) |> head()
 sample_data(otu_tax_sample) |> nrow()
 
 ## subset data if needed
-if (!(is.null(config$subset_group) | config$subset_group == "")) {
+if (!(is.null(config$treatment_column) | config$subset_variable == "") & !(is.null(config$subset_group) | config$subset_group == "")) {
   
+  subset_group = config$subset_group
   print(paste("subsetting data by", subset_group))
-  otu_tax_sample <- subset_samples(otu_tax_sample, experiment == subset_group)
+  otu_tax_sample <- subset_samples(otu_tax_sample, get(eval(config$subset_variable)) == subset_group)
+  # otu_tax_sample <- subset_samples(otu_tax_sample, week == subset_group)
   print("n. of samples left after subsetting")
   sample_data(otu_tax_sample) |> nrow() |> print()
 }
