@@ -33,14 +33,14 @@ if (length(args) >= 1) {
   config = NULL
   config = rbind(config, data.frame(
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/vitelli_microbiome",
-    analysis_folder = "Analysis",
+    prjfolder = "Documents/cremonesi/nucleo_bro",
+    analysis_folder = "Analysis/micca/",
     conf_file = "Config/mapping_file.csv",
-    suffix = "calf_microbiome",
+    suffix = "nucleo_bro",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 15,
-    min_sample = 3,
-    covariates = "Azienda", ## string with covariates separated by a comme
+    min_tot_n = 10,
+    min_sample = 2,
+    covariates = "", ## string with covariates separated by a comme
     project = "",
     treatment_column = "treatment",
     force_overwrite = FALSE
@@ -174,8 +174,11 @@ if (config$nfactors > 1) {
   nvars = config$nfactors + length(covariates)
   matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
   
-  covar = paste(gsub(",", "+", config$covariates))
-  obj <- adonis2(matx ~ dx$timepoint+dx$treatment + dx[[covar]], permutations = 1000)
+  if(config$covariates != "") { 
+    covar = paste(gsub(",", "+", config$covariates))
+    obj <- adonis2(matx ~ dx$timepoint+dx$treatment + dx[[covar]], permutations = 1000)
+    } else obj <- adonis2(matx ~ dx$timepoint+dx$treatment, permutations = 1000)
+  
   print(kable(obj))
   # fwrite(x = list(kable(obj)), file = fname, append = TRUE)
   write(x = "ALL DATA", file = fname, append = TRUE)
@@ -192,7 +195,10 @@ if (config$nfactors > 1) {
     temp1 <- matx[vec,vec]
     
     print(paste("Permanova on the", tt, "subset: comparison between treatments:"))
-    obj <- adonis2(temp1 ~ temp2$treatment + temp2[[covar]], permutations = 1000)
+    if(config$covariates != "") { 
+      obj <- adonis2(temp1 ~ temp2$treatment + temp2[[covar]], permutations = 1000)
+    } else obj <- adonis2(temp1 ~ temp2$treatment, permutations = 1000)
+    
     write(x = tt, file = fname, append = TRUE)
     write(x = kable(obj), file = fname, append = TRUE)
     print(kable(obj))
@@ -201,6 +207,7 @@ if (config$nfactors > 1) {
   }
 } else {
   
+  covar = paste(gsub(",", "+", config$covariates))
   nvars = config$nfactors
   matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
   
@@ -214,6 +221,30 @@ if (config$nfactors > 1) {
 
 library("ggpubr")
 library("ggfortify")
+
+print(paste("processing stratifying variable",config$treatment_column))
+mtd <- sample_data(otu_norm_subset)
+distances = distance(otu_norm_subset, method="bray", type = "samples")
+iMDS  <- ordinate(otu_norm_subset, "MDS", distance=distances)
+mds_subset <- as_tibble(iMDS$vectors)
+mds_subset$treatment = mtd$treatment
+mds_subset$timepoint = mtd$timepoint
+
+gall <- ggscatter(data = mds_subset, x = "Axis.1", y = "Axis.2",
+               label = NULL,
+               color = "timepoint",
+               shape = "treatment",
+               palette = "jco",
+               size = 3,
+               ellipse = TRUE,
+               ellipse.type = "norm",
+               repel = TRUE) + scale_shape_manual(values = c(4,19,2)) 
+
+fname = paste("mds_plot_bray-curtis_ellipse_", config$suffix, "_", "ALL" , ".png")
+to_save[[paste("beta_div_plot", "treatment", sep="_")]] = gall
+ggsave(filename = file.path(prjfolder, config$analysis_folder, "figures", fname), plot = gall, device = "png", dpi = 150, height = 6, width = 7)
+
+
 
 if (all(steps == "") || is.null(steps)) {
   
