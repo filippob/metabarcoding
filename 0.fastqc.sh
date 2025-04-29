@@ -8,15 +8,16 @@
 
 ## folder paths
 currpath=$(pwd)
-datapath="/home/ngs/220713_M04028_0149_000000000-KFG5W/"
-outdir="$HOME/bontempo_pigs_rectum/Analysis/0.fastqc"
+datapath="$HOME/bonn_microbiome/00_fastq"
+outdir="$HOME/bonn_microbiome/Analysis/0.fastqc"
 temp_folder="$HOME/temp"
 
 ## samples to select
-## if start/end is not defined, prefix is used to exclude files when copying
-sample_start=15 #first sample to use (in the sequence)
-sample_end=104 #last sample to use (in the sequence)
-prefix=""
+## if start/end is not defined (empty string, e.g. sample_start= ), prefix is used to exclude files when copying
+## (prefix can't be empty: if you want to use all files in the directory, use a mock string -non existing prefix- to run the script without excluding any files)
+sample_start= #first sample to use (in the sequence)
+sample_end= #last sample to use (in the sequence)
+prefix="rand"
 
 ## software
 fastqcsing="/home/core/nxf_singularity_cache/depot.galaxyproject.org-singularity-fastqc-0.11.9--0.img"
@@ -57,6 +58,7 @@ then
 		rsync -av ${datapath}/${i}_*.fastq.gz ${temp_folder}
 	done
 else
+	echo "sequence start is empty"
 	rsync -av --exclude "${prefix}*" ${datapath}/*.fastq.gz ${temp_folder}
 fi
 
