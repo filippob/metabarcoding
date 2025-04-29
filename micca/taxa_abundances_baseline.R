@@ -39,20 +39,23 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/moroni/capre/delower",
-    analysis_folder = "Analysis/results",
+    prjfolder = "Documents/cremonesi/tamponi_vaginali",
+    analysis_folder = "Analysis",
     otu_norm_file = "otu_norm_CSS.csv",
     conf_file = "Config/mapping_file.csv",
-    suffix = "goat_milk",
+    suffix = "vaginal_swabs",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
-    sample_column = "sample",
-    treatment_column = "Antibiotic",
+    sample_column = "id",
+    subject_column = "CAMPIONI",
+    treatment_column = "treatment",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    exp_levels = paste(c("Not treated", "Treated"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !! Not treated,Treated
+    exp_levels = paste(c("A", "B", "C", "D"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !!
+    base_treatment = 4, ## reference level within timepoint (e.g. control)
+    base_timepoint = 1, ## reference level within treatment (e.g. T0)
     force_overwrite = FALSE
   ))
 }
@@ -74,14 +77,14 @@ exp_levels = strsplit(config$exp_levels, split = ",")[[1]]
 metadata = fread(file.path(prjfolder, config$conf_file))
 # if(config$treatment_column != "treatment" & "treatment" %in% names(metadata)) metadata <- rename(metadata, secondary_treatment = treatment)
 if(config$treatment_column != "treatment" & "treatment" %in% names(metadata)) metadata$treatment <- NULL
-metadata <- metadata |> rename(`sample-id` = !!config$sample_column, treatment = !!config$treatment_column)
+metadata <- metadata |> rename(`sample-id` = !!config$sample_column, treatment = !!config$treatment_column, subject = !!config$subject_column)
 
 if (config$project != "") metadata <- filter(metadata, project == !!config$project)
 
 metadata <- mutate(metadata, `sample-id` = as.character(`sample-id`))
 if("timepoint" %in% names(metadata)) {
-  metadata = metadata |> select(c(`sample-id`, treatment, timepoint)) |> mutate(treatment = as.factor(treatment))
-} else metadata = metadata |> select(c(`sample-id`, treatment)) |> mutate(treatment = as.factor(treatment))
+  metadata = metadata |> select(c(`sample-id`, subject, treatment, timepoint)) |> mutate(treatment = as.factor(treatment))
+} else metadata = metadata |> select(c(`sample-id`, subject, treatment)) |> mutate(treatment = as.factor(treatment))
 
 ## read OTUs (normalised)
 otus = fread(otu_norm_fname)
@@ -100,8 +103,8 @@ metadata$sample <- paste("sample", metadata$`sample-id`, sep = "-")
 mO <- M %>% gather(key = "sample", value = "counts", -c("Phylum"))
 
 if("timepoint" %in% names(metadata)) {
-  temp = select(metadata, c(sample, treatment, timepoint))
-} else temp = select(metadata, c(sample, treatment))
+  temp = select(metadata, c(sample, subject, treatment, timepoint))
+} else temp = select(metadata, c(sample, subject, treatment))
 
 mO <- mO %>% inner_join(temp, by = "sample")
 
@@ -176,18 +179,35 @@ vec <- c(TRUE,vec,rep(TRUE,7))
 otus <- as.data.frame(otus)
 otus <- otus[,vec]
 
+### baseline correction
+temp <- otus |>
+  select(-c(Phylum,Kingdom, Class, Order, Family, Genus, Species)) |>
+  gather(key = "sample", value = "counts", -c("tax_id")) |>
+  filter(tax_id != "")
+
+temp <- temp %>% inner_join(select(metadata, -`sample-id`), by = c("sample" = "sample"))
+
+otu_change <- temp %>%
+  arrange(tax_id, subject, timepoint) %>%
+  group_by(subject) %>%
+  mutate(CHG = counts - counts[1L]) %>%
+  ungroup()
+
+#######################
+
 temp <- otus |>
   select(-c(tax_id,Kingdom, Class, Order, Family, Genus, Species)) |>
   gather(key = "sample", value = "counts", -c("Phylum")) |>
   filter(Phylum != "")
 
+temp$CHG = otu_change$CHG
 temp <- temp %>% inner_join(select(metadata, -`sample-id`), by = c("sample" = "sample"))
 
 if (config$grouping_variable2 != "") {
   fb <- temp |>
     filter(Phylum %in% c("Firmicutes", "Bacteroidetes")) |>
     group_by(sample, Phylum) |>
-    summarise(tot = sum(counts), treatment = unique(treatment), timepoint = unique(timepoint)) |>
+    summarise(tot = sum(CHG), treatment = unique(treatment), timepoint = unique(timepoint)) |>
     spread(key = Phylum, value = tot) |>
     mutate(FB = Firmicutes/Bacteroidetes, treatment = factor(treatment, levels = exp_levels))
 } else {
@@ -195,13 +215,15 @@ if (config$grouping_variable2 != "") {
   fb <- temp |>
     filter(Phylum %in% c("Firmicutes", "Bacteroidetes")) |>
     group_by(sample, Phylum) |>
-    summarise(tot = sum(counts), treatment = unique(treatment)) |>
+    summarise(tot = sum(CHG), treatment = unique(treatment)) |>
     spread(key = Phylum, value = tot) |>
     mutate(FB = Firmicutes/Bacteroidetes, treatment = factor(treatment, levels = exp_levels))
 }
 
 to_save[["data_for_fb"]] = temp
 to_save[["fb_res"]] = fb
+
+fb <- fb |> filter(timepoint != "T1")
 
 p1 <- ggplot(filter(fb, FB != Inf), aes(x = FB, y = treatment, fill = treatment)) 
 p1 <- p1 + geom_density_ridges(aes(point_color = treatment, point_fill = treatment, point_shape = treatment),
@@ -211,7 +233,7 @@ p1 <- p1 + scale_point_color_hue(l = 40)
 p1 <- p1 + scale_discrete_manual(aesthetics = "point_shape", values = (seq(1,length(exp_levels))+20))
 p1
 
-fname = paste("fb_density_", config$suffix, ".png", sep="")
+fname = paste("fb_density_baseline_", config$suffix, ".png", sep="")
 fname = file.path(outdir, fname)
 ggsave(filename = fname, plot = p, device = "png")
 
@@ -252,7 +274,7 @@ if (config$grouping_variable2 != "") {
     summarise(tot_sample = sum(counts)) |> 
     mutate(tot = sum(tot_sample), abundance = tot_sample/tot) |>
     group_by(timepoint, treatment, level, taxon) |>
-    summarise(avg_abund = mean(abundance), std = sd(abundance))
+    summarise(avg_abund = mean(abundance))
   
   
   temp$level = factor(temp$level, levels = c("Class","Order","Family","Genus"))
@@ -285,44 +307,57 @@ mO <- otus |>
   gather(key = "sample", value = "counts", -c(Genus))
 
 if (config$grouping_variable2 != "") { 
-  temp = select(metadata, c(sample, treatment, timepoint))
-} else temp = select(metadata, c(sample, treatment))
+  temp = select(metadata, c(sample, subject, treatment, timepoint))
+} else temp = select(metadata, c(sample, subject, treatment))
 mO <- mO %>% inner_join(temp, by = c("sample" = "sample"))
 mO$treatment = factor(mO$treatment, levels = exp_levels)
 
+### Linear model
+base_treatment = levels(as.factor(mO$treatment))[config$base_treatment]
+base_timepoint = levels(as.factor(mO$timepoint))[config$base_timepoint]
+
+treats = unique(mO$treatment)
+treats = c(base_treatment, as.character(treats[treats != base_treatment]))
+mO$treatment = factor(mO$treatment, levels = treats)
+
+
+### baseline correction
+otu_change <- mO %>%
+  arrange(Genus, subject, timepoint) %>%
+  group_by(subject) %>%
+  mutate(CHG = counts - counts[1L]) %>%
+  ungroup()
+
+mO$CHG = otu_change$CHG
+#######################
+
+temp <- filter(mO, timepoint != "T1")
+
 if (config$grouping_variable2 != "") { 
 
-  dd <- mO |>
+  dd <- temp |>
     group_by(Genus, treatment, timepoint) |>
-    summarise(avg = mean(counts)) |>
+    summarise(avg = mean(CHG)) |>
     spread(key = "treatment", value = avg)
   
-  genus_stats <- mO %>% 
+  genus_stats <- temp %>% 
     group_by(Genus, treatment, timepoint) %>%
-    summarise(avg = round(mean(counts),3), std = round(sd(counts),3), N=n())
+    summarise(avg = round(mean(CHG),3), std = round(sd(CHG),3))
 } else {
   
-  dd <- mO |>
+  dd <- temp |>
     group_by(Genus, treatment) |>
-    summarise(avg = mean(counts)) |>
+    summarise(avg = mean(CHG)) |>
     spread(key = "treatment", value = avg)
   
-  genus_stats <- mO %>% 
+  genus_stats <- temp %>% 
     group_by(Genus, treatment) %>%
-    summarise(avg = round(mean(counts),3), std = round(sd(counts),3), N = n())
+    summarise(avg = round(mean(CHG),3), std = round(sd(CHG),3))
 }
 
 diff <- genus_stats |> 
-  select(-c(std,N)) |> 
+  select(-std) |> 
   spread(key = "treatment", value = avg)
-
-std <- genus_stats |> 
-  select(-c(avg,N)) |> 
-  spread(key = "treatment", value = std)
-
-sample_size <- genus_stats |> 
-  select(-c(avg,std)) |> 
-  spread(key = "treatment", value = N)
 
 cmb <- combn(exp_levels, 2)
 
@@ -359,26 +394,17 @@ if (config$grouping_variable2 != "") {
     gather(key = "treatment", value = "difference", -c(Genus))
 }
 
-contrasts <- contrasts |> inner_join(std, by = c("Genus", "timepoint")) |>
-  rename(std_cg = `Not treated`, std_tg = Treated)
-
-contrasts <- contrasts |> inner_join(sample_size, by = c("Genus", "timepoint")) |>
-  rename(n_cg = `Not treated`, n_tg = Treated)
-
-contrasts <- contrasts |>
-  mutate(std_err = sqrt((std_cg^2)/n_cg + (std_tg^2)/n_tg))
-
 to_save[["relabund_for_lm"]] = mO
 to_save[["genus_stats"]] = genus_stats
 to_save[["diffs"]] = contrasts
 
 if (config$grouping_variable2 != "") { 
-  D <- mO %>%
+  D <- temp %>%
     group_by(Genus,.data[[config$grouping_variable2]]) %>%
     do(tidy(lm(counts ~ .data[[config$grouping_variable1]], data=.))) %>%
     filter(term != "(Intercept)")
 } else {
-  D <- mO %>%
+  D <- temp %>%
     group_by(Genus) %>%
     do(tidy(lm(counts ~ .data[[config$grouping_variable1]], data=.))) %>%
     filter(term != "(Intercept)")
@@ -392,28 +418,28 @@ dtbl <- DT::datatable(D, options = list(pageLength=100)) %>%
   formatStyle('p.value', backgroundColor = styleInterval(0.05, c('yellow', 'white')))
 
 ## saving HTML file with DT::datatable() output
-fname = paste("significant_otus_DT_datatable_", config$suffix, ".html", sep="")
+fname = paste("significant_otus_DT_datatable_baseline_", config$suffix, ".html", sep="")
 fname = file.path(outdir, "tables", fname)
 DT::saveWidget(dtbl, fname)
 
 
-fname = paste("significant_otus_treatment_within_timepoint_", config$suffix, ".csv", sep="")
+fname = paste("significant_otus_treatment_within_timepoint_baseline_", config$suffix, ".csv", sep="")
 fname = file.path(outdir, "tables", fname)
 filter(D, p.value <= 0.05) %>% fwrite(file = fname, sep = ",", col.names = TRUE)
 
-temp <- ungroup(D) |> filter(p.value <= 0.05)
+tmpx <- ungroup(D) |> filter(p.value <= 0.05)
 
-tmp <- mO |> filter(Genus %in% temp$Genus) |>
+tmp <- temp |> filter(Genus %in% tmpx$Genus) |>
   group_by(Genus, .data[[config$grouping_variable1]]) |>
   summarise(avg = mean(counts)) |>
   spread(key = .data[[config$grouping_variable1]], value = avg)
 
-fname = paste("avg_counts_", config$suffix, ".csv", sep="")  
+fname = paste("avg_counts_baseline_", config$suffix, ".csv", sep="")  
 fname = file.path(outdir, "tables", fname)
 fwrite(x = tmp, file = fname)
 
 if (config$grouping_variable2 != "") { 
-  tmp <- mO |> filter(Genus %in% temp$Genus) |>
+  tmp <- temp |> filter(Genus %in% tmpx$Genus) |>
     group_by(Genus, .data[[config$grouping_variable2]], .data[[config$grouping_variable1]]) |>
     summarise(avg = mean(counts)) |>
     spread(key = .data[[config$grouping_variable1]], value = avg)
@@ -421,14 +447,14 @@ if (config$grouping_variable2 != "") {
 
 if (config$grouping_variable2 != "") { 
   genus_stats <- genus_stats |>
-    inner_join(temp, by = c("Genus" = "Genus","timepoint"="timepoint", "treatment"="term"))
+    inner_join(tmpx, by = c("Genus" = "Genus","timepoint"="timepoint", "treatment"="term"))
 } else {
   genus_stats <- genus_stats |>
-    inner_join(temp, by = c("Genus" = "Genus", "treatment"="term"))
+    inner_join(tmpx, by = c("Genus" = "Genus", "treatment"="term"))
 }
 
 
-fname = paste("significant_otus_abundance_", config$suffix, ".csv", sep="")
+fname = paste("significant_otus_abundance_baseline_", config$suffix, ".csv", sep="")
 fname = file.path(outdir, "tables", fname)
 fwrite(genus_stats, file = fname)
 
@@ -456,9 +482,11 @@ to_save[["lm_significant_stats"]] = genus_stats
 #################################
 ### MODEL with time and treatment
 #################################
-if (config$grouping_variable2 != "") { 
+
+groupvar2_levels = unique(temp[[config$grouping_variable2]])
+if (length(groupvar2_levels) > 1) { 
   
-  D <- mO %>%
+  D <- temp %>%
     group_by(Genus) |>
     do(tidy(lm(counts ~ .data[[config$grouping_variable2]] + .data[[config$grouping_variable1]], data=.))) %>%
     filter(term != "(Intercept)")
@@ -486,9 +514,9 @@ if (config$grouping_variable2 != "") {
 ########################################
 ## MANUALLY SET THE X VARIABLE IN AOV()
 ########################################
-if (config$grouping_variable2 != "") { 
+if (length(groupvar2_levels) > 1) { 
   
-  contrasts <- mO |>
+  contrasts <- temp |>
     nest(data = -c(Genus, .data[[config$grouping_variable2]])) |>
     mutate(
       fit = map(data, ~ aov(counts ~ treatment, data = .x)),
@@ -515,11 +543,11 @@ if (config$grouping_variable2 != "") {
 
 to_save[["contrasts"]] = contrasts
 
-fname = paste("taxa_contrasts_all_", config$suffix, ".csv", sep="")
+fname = paste("taxa_contrasts_all_baseline_", config$suffix, ".csv", sep="")
 fname = file.path(outdir, "tables", fname)
 fwrite(contrasts, file = fname)
 
-if (config$grouping_variable2 != "") { 
+if (length(groupvar2_levels) > 1) { 
   
   tmp <- contrasts |>
     filter(!is.na(adj.p.value)) |>
@@ -538,7 +566,7 @@ if (config$grouping_variable2 != "") {
 colors = c("red","white")
 
 gg <- ggplot(tmp, aes(x = contrast, y = Genus)) + geom_tile(aes(fill=pvalue), color = "white")
-if (config$grouping_variable2 != "") gg <- gg + facet_wrap(~timepoint)
+if (length(groupvar2_levels) > 1) gg <- gg + facet_wrap(~timepoint)
 gg <- gg + scale_fill_manual(values=colors) + 
   theme(axis.text.x = element_text(angle=90, size = 6),
         axis.text.y = element_text(size = 4),
@@ -551,12 +579,12 @@ gg <- gg + scale_fill_manual(values=colors) +
         panel.grid.major = element_line(color = 'white'),
         panel.grid.minor = element_line(color = 'white'))
 
-fname = paste("taxa_contrasts_significant_", config$suffix, ".png", sep="")
+fname = paste("taxa_contrasts_significant_baseline_", config$suffix, ".png", sep="")
 fname = file.path(outdir, "figures", fname)
 ggsave(filename = fname, plot = gg, device = "png", width = 5, height = 11)
 
 ## save results to R object
-fname = paste("taxa_abundance_results_", config$suffix, ".RData", sep="")
+fname = paste("taxa_abundance_results_baseline_", config$suffix, ".RData", sep="")
 fname = file.path(outdir, fname)
 save(to_save, file = fname)
 

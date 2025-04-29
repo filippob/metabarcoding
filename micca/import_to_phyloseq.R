@@ -44,18 +44,19 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/nucleo_bro",
-    analysis_folder = "Analysis/micca",
+    prjfolder = "Documents/moroni/lettiera",
+    analysis_folder = "Analysis",
     fname = "filtered_otu/otu_table_filtered.biom",
     conf_file = "Config/mapping_file.csv",
-    suffix = "nucleo_bro",
+    suffix = "bedding_wk2",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 15,
-    min_sample = 3,
+    min_tot_n = 10,
+    min_sample = 2,
     project = "", ## USE ONLY FOR SUBSETTING !!
     treatment_column = "treatment",
-    sample_column = "sample",
-    subset_group = "", ## subset data by sample variable (e.g. experiment, group, sex, etc.),
+    sample_column = "sample_id",
+    subset_variable = "week",
+    subset_group = "WEEK2", ## subset data by sample variable (e.g. experiment, group, sex, etc.),
     force_overwrite = FALSE
   ))
 }
@@ -93,7 +94,7 @@ colnames(otu) <- paste("sample-",colnames(otu),sep="")
 print(head(otu))
 
 writeLines(" - change the names of taxonomic levels to Kngdom, Class etc.")
-colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus","Species") #if number does not fit, add "" as blank spaces to solve the problem
+colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus") #if number does not fit, add "" as blank spaces to solve the problem
 # colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus") #from RDP
 print(head(taxa))
 
@@ -102,12 +103,13 @@ writeLines(" - reading the metadata")
 metadata = fread(file.path(prjfolder, config$conf_file))
 #metadata = metadata |> rename(`sample-id` = id) |> relocate(`sample-id`)
 names(metadata)[1] <- "sample-id"
+if (config$treatment_column != "treatment") metadata <- rename(metadata, 'treatment' = !!config$treatment_column)
 metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") 
 if(is.numeric(metadata$`sample-id`)) metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") # in case your sample-id are not only numeric, remove or comment if(is.numeric(metadata$`sample-id`))
 metadata <- as.data.frame(metadata)
 row.names(metadata) <- metadata$`sample-id`
 metadata$`sample-id` <- NULL
-metadata$timepoint = as.factor(metadata$timepoint)
+if("timepoint" %in% names(metadata)) metadata$timepoint = as.factor(metadata$timepoint)
 metadata$treatment = as.factor(metadata$treatment)
 
 ## read into phyloseq
@@ -118,16 +120,19 @@ sample_data(otu_tax_sample) |> head()
 sample_data(otu_tax_sample) |> nrow()
 
 ## subset data if needed
-if (!(is.null(config$subset_group) | config$subset_group == "")) {
+if (!(is.null(config$treatment_column) | config$subset_variable == "") & !(is.null(config$subset_group) | config$subset_group == "")) {
   
+  subset_group = config$subset_group
   print(paste("subsetting data by", subset_group))
-  otu_tax_sample <- subset_samples(otu_tax_sample, experiment == subset_group)
+  otu_tax_sample <- subset_samples(otu_tax_sample, get(eval(config$subset_variable)) == subset_group)
+  # otu_tax_sample <- subset_samples(otu_tax_sample, week == subset_group)
   print("n. of samples left after subsetting")
   sample_data(otu_tax_sample) |> nrow() |> print()
 }
 
 ## remove samples if treatment or timepoint is missing
-otu_tax_sample <- subset_samples(otu_tax_sample, !(is.na(treatment) | is.na(timepoint)))
+if("timepoint" %in% names(metadata)) otu_tax_sample <- subset_samples(otu_tax_sample, !(is.na(timepoint)))
+otu_tax_sample <- subset_samples(otu_tax_sample, !(is.na(treatment)))
 sample_data(otu_tax_sample) |> nrow()
 
 ## save phyloseq object

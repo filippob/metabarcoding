@@ -34,12 +34,13 @@ if (length(args) >= 1) {
   config = rbind(config, data.frame(
     repo = "Documents/cremonesi/metabarcoding",
     prjfolder = "Documents/cremonesi/nucleo_bro",
-    analysis_folder = "Analysis/micca",
+    analysis_folder = "Analysis/micca/",
     conf_file = "Config/mapping_file.csv",
     suffix = "nucleo_bro",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 15,
-    min_sample = 3,
+    min_tot_n = 10,
+    min_sample = 2,
+    covariates = "", ## string with covariates separated by a comme
     project = "",
     treatment_column = "treatment",
     force_overwrite = FALSE
@@ -51,7 +52,8 @@ repo = file.path(HOME, config$repo)
 prjfolder = file.path(HOME, config$prjfolder)
 outdir = file.path(prjfolder,config$analysis_folder)
 
-fname = file.path(outdir, "beta_by_group.config.RData")
+fname = paste("beta_by_group.config_",config$suffix,".RData", sep="")
+fname = file.path(outdir, fname)
 save(config, file = fname)
 
 source(file.path(repo, "support_functions/dist2list.R")) ## from: https://github.com/vmikk/metagMisc/
@@ -85,7 +87,8 @@ if(nchar(config$project) > 0) {
 } else otu_norm_subset <- otu_tax_sample_norm
 
 ## changing treatment column
-# sample_data(otu_norm_subset)$treatment <- dplyr::pull(x, !!config$treatment_column )
+x <- sample_data(otu_tax_sample_norm)
+sample_data(otu_norm_subset)$treatment <- dplyr::pull(x, !!config$treatment_column )
 sample_data(otu_norm_subset) |> head() |> print()
 
 steps = unique(sample_data(otu_norm_subset)$timepoint)
@@ -95,6 +98,17 @@ steps = unique(sample_data(otu_norm_subset)$timepoint)
 ###############
 writeLines(" - beta diversity: distance matrices")
 writeLines(" - available distance metrics")
+
+if (all(steps == "") || is.null(steps)) {
+  
+  print(paste(" - calculate Bray-Curtis distances for ", config$treatment_column))
+  distances = distance(otu_norm_subset, method="bray", type = "samples")
+  iMDS  <- ordinate(otu_norm_subset, "MDS", distance=distances)
+  p <- plot_ordination(otu_norm_subset, iMDS, color="treatment")
+  fname = paste("mds_plot_bray_curtis_", config$suffix, "_treatment.png")
+  ggsave(filename = file.path(prjfolder, config$analysis_folder, "figures", fname), plot = p, device = "png")
+}
+
 ## bray-curtis
 for (k in steps) {
   
@@ -112,7 +126,18 @@ metadata <- sample_data(otu_norm_subset)
 metadata$`sample-id` = row.names(metadata)
 row.names(metadata) <- NULL
 metadata <- as_tibble(metadata)
+
+if (config$covariates != "") { covariates = unlist(strsplit(config$covariates, split = ",")) 
+} else covariates = NULL
+print(paste("The following covariates are used:", covariates))
+
+if (config$treatment_column != "treatment") metadata$treatment = NULL
+
 metadata <- metadata |> rename('sample-id' = !!config$sample_column, treatment = !!config$treatment_column)
+
+if("timepoint" %in% names(metadata)) {
+  metadata = metadata |> select(c(`sample-id`, treatment, timepoint, all_of(covariates))) |> mutate(treatment = as.factor(treatment))
+} else metadata = metadata |> select(c(`sample-id`, treatment, all_of(covariates))) |> mutate(treatment = as.factor(treatment))
 
 ## UNCOMMENT BELOW IF YOU NEED TO CHANGE TREATMENT LABELS
 # old_treat = unique(sample_data(otu_norm_subset)$treatment)
@@ -125,7 +150,11 @@ dd = dist2list(distances, tri = FALSE)
 dx = spread(dd, key = "col", value = "value")
 
 # temp = dplyr::select(metadata, c(`sample-id`,timepoint,Antibiotic)) |> rename(treatment = Antibiotic)
-temp = dplyr::select(metadata, c(`sample-id`,timepoint,treatment))
+if(config$nfactors > 1) {
+  
+  temp = dplyr::select(metadata, c(`sample-id`,timepoint, treatment, all_of(covariates)))
+} else temp = dplyr::select(metadata, c(`sample-id`,treatment, all_of(covariates)))
+
 dx <- dx %>% inner_join(temp, by = c("row" = "sample-id"))
 
 temp = select(dx,-row)
@@ -142,10 +171,14 @@ write(x = "PERMANOVA", file = fname)
 
 if (config$nfactors > 1) {
   
-  nvars = config$nfactors
+  nvars = config$nfactors + length(covariates)
   matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
   
-  obj <- adonis2(matx ~ dx$timepoint+dx$treatment, permutations = 1000)
+  if(config$covariates != "") { 
+    covar = paste(gsub(",", "+", config$covariates))
+    obj <- adonis2(matx ~ dx$timepoint+dx$treatment + dx[[covar]], permutations = 1000)
+    } else obj <- adonis2(matx ~ dx$timepoint+dx$treatment, permutations = 1000)
+  
   print(kable(obj))
   # fwrite(x = list(kable(obj)), file = fname, append = TRUE)
   write(x = "ALL DATA", file = fname, append = TRUE)
@@ -158,11 +191,14 @@ if (config$nfactors > 1) {
     
     print(tt)
     vec = (dx$timepoint == tt)
-    temp2 <- dx[vec,c(TRUE,vec,TRUE,TRUE)]
+    temp2 <- dx[vec,c(TRUE,vec,rep(TRUE,nvars))]
     temp1 <- matx[vec,vec]
     
     print(paste("Permanova on the", tt, "subset: comparison between treatments:"))
-    obj <- adonis2(temp1 ~ temp2$treatment, permutations = 1000)
+    if(config$covariates != "") { 
+      obj <- adonis2(temp1 ~ temp2$treatment + temp2[[covar]], permutations = 1000)
+    } else obj <- adonis2(temp1 ~ temp2$treatment, permutations = 1000)
+    
     write(x = tt, file = fname, append = TRUE)
     write(x = kable(obj), file = fname, append = TRUE)
     print(kable(obj))
@@ -171,10 +207,11 @@ if (config$nfactors > 1) {
   }
 } else {
   
+  covar = paste(gsub(",", "+", config$covariates))
   nvars = config$nfactors
   matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
   
-  obj <- adonis2(matx ~ dx$treatment, permutations = 1000)
+  obj <- adonis2(matx ~ dx$treatment + dx[[covar]], permutations = 1000)
   print(kable(obj))
   write(x = kable(obj), file = fname, append = TRUE)
   
@@ -185,11 +222,59 @@ if (config$nfactors > 1) {
 library("ggpubr")
 library("ggfortify")
 
+print(paste("processing stratifying variable",config$treatment_column))
+mtd <- sample_data(otu_norm_subset)
+distances = distance(otu_norm_subset, method="bray", type = "samples")
+iMDS  <- ordinate(otu_norm_subset, "MDS", distance=distances)
+mds_subset <- as_tibble(iMDS$vectors)
+mds_subset$treatment = mtd$treatment
+mds_subset$timepoint = mtd$timepoint
+
+gall <- ggscatter(data = mds_subset, x = "Axis.1", y = "Axis.2",
+               label = NULL,
+               color = "timepoint",
+               shape = "treatment",
+               palette = "jco",
+               size = 3,
+               ellipse = TRUE,
+               ellipse.type = "norm",
+               repel = TRUE) + scale_shape_manual(values = c(4,19,2)) 
+
+fname = paste("mds_plot_bray-curtis_ellipse_", config$suffix, "_", "ALL" , ".png")
+to_save[[paste("beta_div_plot", "treatment", sep="_")]] = gall
+ggsave(filename = file.path(prjfolder, config$analysis_folder, "figures", fname), plot = gall, device = "png", dpi = 150, height = 6, width = 7)
+
+
+
+if (all(steps == "") || is.null(steps)) {
+  
+  print(paste("processing stratifying variable",config$treatment_column))
+  mtd <- sample_data(otu_norm_subset)
+  distances = distance(otu_norm_subset, method="bray", type = "samples")
+  iMDS  <- ordinate(otu_norm_subset, "MDS", distance=distances)
+  mds_subset <- as_tibble(iMDS$vectors)
+  mds_subset$treatment = mtd$treatment
+  
+  g <- ggscatter(data = mds_subset, x = "Axis.1", y = "Axis.2",
+                 label = NULL,
+                 color = "treatment",
+                 palette = "jco",
+                 size = 1,
+                 ellipse = TRUE,
+                 ellipse.type = "norm",
+                 repel = TRUE)
+  
+  fname = paste("mds_plot_bray-curtis_ellipse_", config$suffix, "_", "treatment" , ".png")
+  to_save[[paste("beta_div_plot", "treatment", sep="_")]] = g
+  ggsave(filename = file.path(prjfolder, config$analysis_folder, "figures", fname), plot = g, device = "png")
+}
+
 for (k in steps) {
   
   print(paste("processing stratifying variable",k))
   temp <- subset_samples(otu_norm_subset, timepoint == k)
   mtd <- sample_data(temp)
+  mtd$treatment = c("TG","CG")[match(mtd$treatment,unique(mtd$treatment))]
   distances = distance(temp, method="bray", type = "samples")
   iMDS  <- ordinate(temp, "MDS", distance=distances)
   mds_subset <- as_tibble(iMDS$vectors)
@@ -202,7 +287,7 @@ for (k in steps) {
                  size = 1,
                  ellipse = TRUE,
                  ellipse.type = "norm",
-                 repel = TRUE)
+                 repel = TRUE) + theme(legend.title=element_blank())
   
   fname = paste("mds_plot_bray-curtis_ellipse_", config$suffix, "_", k , ".png")
   to_save[[paste("beta_div_plot", k, sep="_")]] = g
@@ -224,7 +309,7 @@ if(length(steps) > 1) {
                  size = 1,
                  ellipse = TRUE,
                  ellipse.type = "norm",
-                 repel = TRUE)
+                 repel = TRUE) + theme(legend.title=element_blank())
   
   to_save[["beta_div_plot_timepoint"]] = g
   
