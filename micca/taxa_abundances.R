@@ -39,20 +39,21 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/moroni/capre/delower",
-    analysis_folder = "Analysis/results",
+    prjfolder = "Documents/cremonesi/vitelli_giulia_sala_2025",
+    analysis_folder = "Analysis",
     otu_norm_file = "otu_norm_CSS.csv",
     conf_file = "Config/mapping_file.csv",
-    suffix = "goat_milk",
+    suffix = "calves_colostrum",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
-    sample_column = "sample",
-    treatment_column = "Antibiotic",
+    sample_column = "sample_id",
+    treatment_column = "treatment",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    exp_levels = paste(c("Not treated", "Treated"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !! Not treated,Treated
+    exp_levels = paste(c("0", "1", "2"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !! Not treated,Treated
+    sig_threshold = 0.01,
     force_overwrite = FALSE
   ))
 }
@@ -81,7 +82,10 @@ if (config$project != "") metadata <- filter(metadata, project == !!config$proje
 metadata <- mutate(metadata, `sample-id` = as.character(`sample-id`))
 if("timepoint" %in% names(metadata)) {
   metadata = metadata |> select(c(`sample-id`, treatment, timepoint)) |> mutate(treatment = as.factor(treatment))
-} else metadata = metadata |> select(c(`sample-id`, treatment)) |> mutate(treatment = as.factor(treatment))
+} else metadata = metadata |> select(c(`sample-id`, treatment, !!config$grouping_variable2))
+
+## convert to factors
+metadata <- metadata |> mutate_at(vars(-("sample-id")),as.factor)
 
 ## read OTUs (normalised)
 otus = fread(otu_norm_fname)
@@ -101,7 +105,7 @@ mO <- M %>% gather(key = "sample", value = "counts", -c("Phylum"))
 
 if("timepoint" %in% names(metadata)) {
   temp = select(metadata, c(sample, treatment, timepoint))
-} else temp = select(metadata, c(sample, treatment))
+} else temp = select(metadata, c(sample, treatment, !!config$grouping_variable2))
 
 mO <- mO %>% inner_join(temp, by = "sample")
 
@@ -118,12 +122,12 @@ if("timepoint" %in% names(metadata)) {
 } else {
   
   D <- mO %>% 
-    group_by(treatment,Phylum) %>% 
+    dplyr::group_by(treatment, .data[[config$grouping_variable2]], Phylum) %>% 
     dplyr::summarise(avg = sum(counts))
   
-  D <- mO |> group_by(treatment) |>
+  D <- mO |> group_by(treatment, .data[[config$grouping_variable2]]) |>
     mutate(tot = sum(counts)) |>
-    group_by(treatment, Phylum) |>
+    group_by(treatment, .data[[config$grouping_variable2]], Phylum) |>
     summarise(avg = sum(counts)/unique(tot))
 }
 
@@ -292,10 +296,11 @@ mO$treatment = factor(mO$treatment, levels = exp_levels)
 
 if (config$grouping_variable2 != "") { 
 
-  dd <- mO |>
+  temp <- mO |>
     group_by(Genus, treatment, timepoint) |>
-    summarise(avg = mean(counts)) |>
-    spread(key = "treatment", value = avg)
+    summarise(avg = mean(counts))
+  
+  dd <- pivot_wider(temp, names_from = treatment, values_from = avg)
   
   genus_stats <- mO %>% 
     group_by(Genus, treatment, timepoint) %>%
@@ -314,15 +319,15 @@ if (config$grouping_variable2 != "") {
 
 diff <- genus_stats |> 
   select(-c(std,N)) |> 
-  spread(key = "treatment", value = avg)
+  pivot_wider(names_from = treatment, values_from = avg)
 
 std <- genus_stats |> 
   select(-c(avg,N)) |> 
-  spread(key = "treatment", value = std)
+  pivot_wider(names_from = treatment, values_from = std)
 
 sample_size <- genus_stats |> 
   select(-c(avg,std)) |> 
-  spread(key = "treatment", value = N)
+  pivot_wider(names_from = treatment, values_from = N)
 
 cmb <- combn(exp_levels, 2)
 
@@ -360,13 +365,23 @@ if (config$grouping_variable2 != "") {
 }
 
 contrasts <- contrasts |> inner_join(std, by = c("Genus", "timepoint")) |>
-  rename(std_cg = `Not treated`, std_tg = Treated)
+  rename_with(~str_c("std_", .), .cols = c(`0`,`1`,`2`))
+  
+ contrasts <- contrasts |> inner_join(sample_size, by = c("Genus", "timepoint")) |>
+   rename_with(~str_c("n_", .), .cols = c(`0`,`1`,`2`))
+  # rename(n_cg = `Not treated`, n_tg = Treated)
 
-contrasts <- contrasts |> inner_join(sample_size, by = c("Genus", "timepoint")) |>
-  rename(n_cg = `Not treated`, n_tg = Treated)
+# contrasts <- contrasts |>
+#   mutate(std_err = sqrt((std_cg^2)/n_cg + (std_tg^2)/n_tg))
 
 contrasts <- contrasts |>
-  mutate(std_err = sqrt((std_cg^2)/n_cg + (std_tg^2)/n_tg))
+  mutate(across(starts_with("std"), ~ .x**2)) |>
+  mutate(across(starts_with("std_"),
+                ~ .x / get(sub("std_", "n_", cur_column())),
+                .names = "ratio_{.col}")) |>
+  rowwise() |>
+  mutate(std_err = sum(c_across(starts_with("ratio")))) |>
+  select(Genus, timepoint, treatment, difference, starts_with("std"))
 
 to_save[["relabund_for_lm"]] = mO
 to_save[["genus_stats"]] = genus_stats
@@ -380,7 +395,7 @@ if (config$grouping_variable2 != "") {
 } else {
   D <- mO %>%
     group_by(Genus) %>%
-    do(tidy(lm(counts ~ .data[[config$grouping_variable1]], data=.))) %>%
+    do(tidy(lm(counts ~ .data[[config$grouping_variable1]] + .data[[config$grouping_variable1]], data=.))) %>%
     filter(term != "(Intercept)")
 }
 
@@ -389,7 +404,7 @@ D$term <- gsub("\\.data.*]]","",D$term)
 # D$term <- gsub("timepoint","",D$term)
 
 dtbl <- DT::datatable(D, options = list(pageLength=100)) %>% 
-  formatStyle('p.value', backgroundColor = styleInterval(0.05, c('yellow', 'white')))
+  formatStyle('p.value', backgroundColor = styleInterval(config$sig_threshold, c('yellow', 'white')))
 
 ## saving HTML file with DT::datatable() output
 fname = paste("significant_otus_DT_datatable_", config$suffix, ".html", sep="")
@@ -399,9 +414,9 @@ DT::saveWidget(dtbl, fname)
 
 fname = paste("significant_otus_treatment_within_timepoint_", config$suffix, ".csv", sep="")
 fname = file.path(outdir, "tables", fname)
-filter(D, p.value <= 0.05) %>% fwrite(file = fname, sep = ",", col.names = TRUE)
+filter(D, p.value <= config$sig_threshold) %>% fwrite(file = fname, sep = ",", col.names = TRUE)
 
-temp <- ungroup(D) |> filter(p.value <= 0.05)
+temp <- ungroup(D) |> filter(p.value <= config$sig_threshold)
 
 tmp <- mO |> filter(Genus %in% temp$Genus) |>
   group_by(Genus, .data[[config$grouping_variable1]]) |>
@@ -469,7 +484,7 @@ if (config$grouping_variable2 != "") {
   # D$term <- gsub("timepoint","",D$term)
   
   dtbl <- DT::datatable(D, options = list(pageLength=100)) %>% 
-    formatStyle('p.value', backgroundColor = styleInterval(0.05, c('yellow', 'white')))
+    formatStyle('p.value', backgroundColor = styleInterval(config$sig_threshold, c('yellow', 'white')))
   
   ## saving HTML file with DT::datatable() output
   fname = paste("significant_otus_DT_datatable_time+treat_", config$suffix, ".html", sep="")
@@ -479,7 +494,7 @@ if (config$grouping_variable2 != "") {
   
   fname = paste("significant_otus_treatment_across_time_", config$suffix, ".csv", sep="")
   fname = file.path(outdir, "tables", fname)
-  filter(D, p.value <= 0.05) %>% fwrite(file = fname, sep = ",", col.names = TRUE)
+  filter(D, p.value <= config$sig_threshold) %>% fwrite(file = fname, sep = ",", col.names = TRUE)
 
 }
 
@@ -522,16 +537,16 @@ fwrite(contrasts, file = fname)
 if (config$grouping_variable2 != "") { 
   
   tmp <- contrasts |>
-    filter(!is.na(adj.p.value)) |>
+    filter(!is.na(adj.p.value), adj.p.value < config$sig_threshold) |>
     select(Genus, timepoint, contrast, adj.p.value) |>
-    mutate(pvalue = ifelse(adj.p.value <= 0.05, "<= 0.05", "> 0.05")) |>
+    mutate(pvalue = ifelse(adj.p.value <= config$sig_threshold, "<= sig_thr", "> sig_thr")) |>
     select(-adj.p.value)
 } else {
   
   tmp <- contrasts |>
-    filter(!is.na(adj.p.value)) |>
+    filter(!is.na(adj.p.value), adj.p.value < config$sig_threshold) |>
     select(Genus, contrast, adj.p.value) |>
-    mutate(pvalue = ifelse(adj.p.value <= 0.05, "<= 0.05", "> 0.05")) |>
+    mutate(pvalue = ifelse(adj.p.value <= config$sig_threshold, "<= sig_thr", "> sig_thr")) |>
     select(-adj.p.value)
 }
 
@@ -541,7 +556,7 @@ gg <- ggplot(tmp, aes(x = contrast, y = Genus)) + geom_tile(aes(fill=pvalue), co
 if (config$grouping_variable2 != "") gg <- gg + facet_wrap(~timepoint)
 gg <- gg + scale_fill_manual(values=colors) + 
   theme(axis.text.x = element_text(angle=90, size = 6),
-        axis.text.y = element_text(size = 4),
+        axis.text.y = element_text(size = 5),
         legend.key.size = unit(0.1, 'cm'),
         strip.text = element_text(size=7),
         legend.title = element_text(size=6),
