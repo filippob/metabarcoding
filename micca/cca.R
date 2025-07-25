@@ -166,6 +166,9 @@ ph <- ph + theme(
   axis.text=element_text(size=14))
 ph
 
+## UP TO HERE
+## try with timepoint and weight as continuous, fecal score as categorical (or viceversa)
+
 ### CCA
 M <- mm[,c(2:4)]
 H <- mm[,c(6:10)]
