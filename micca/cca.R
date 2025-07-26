@@ -204,6 +204,7 @@ H <- predict(preProcValues, H)
 
 simX <- as.matrix(M)
 
+## change ncol(M) to take subset of omics features
 vec <- sample(ncol(simX), ncol(M))
 X <- simX[,vec]
 
