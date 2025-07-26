@@ -1,21 +1,21 @@
 
-library("plyr")
+library("RANN")
 library("broom")
 library("dplyr")
 library("vegan")
 library("caret")
 library("ggpubr")
 library("ggrepel")
-library("tidyverse")
-library("tidymodels")
+# library("tidyverse")
+# library("tidymodels")
 library("data.table")
-library("gghighlight")
 
-# library("RANN")
+
 # library("scales")
 # library("ggplot2")
 # library("madbito")
 # library("reshape2")
+# library("gghighlight")
 
 
 ## PARAMETERS
@@ -96,7 +96,7 @@ writeLines(" - data preprocessing")
 ## select columns
 temp = unlist(strsplit(config$cols_to_keep, ":|,|\\.|-|_"))
 position = as.numeric(temp[1]):as.numeric(temp[2])
-omics <- omics %>% select(position)
+omics <- omics %>% select(all_of(position))
 
 ## filter
 omics <- omics[rowSums(omics) > config$min_tot_n,] #keep only small RNA with more than 10 counts
@@ -204,7 +204,7 @@ H <- predict(preProcValues, H)
 
 simX <- as.matrix(M)
 
-vec <- sample(ncol(simX), nrow(M)+60)
+vec <- sample(ncol(simX), ncol(M))
 X <- simX[,vec]
 
 ## safety net (filter to make sure all row sums are larger than zero)
