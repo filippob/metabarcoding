@@ -48,13 +48,13 @@ if (length(args) >= 1) {
     omics_file = "Analysis/otu_norm_CSS.csv",
     suffix = "calves_colostrum",
     cols_to_keep = "2:113", ## position of omics cols to keep (numeric columns): start end position (separated by :,.-_)
-    normalize = TRUE, ## should we normalise omics data?
+    normalize = FALSE, ## should we normalise omics data?
     nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 10,
+    min_tot_n = 200,
     min_sample = 2,
     project = "", ##! use only for subsetting
-    cov_factor = "timepoint",
-    cov_continuous = "weight",
+    cov_factor = "fecal_score",
+    cov_continuous = "timepoint,weight",
     sample_column = "sample_id",
     sample_prefix = "sample-",
     grouping_variable = "treatment",
@@ -93,16 +93,24 @@ temp = unlist(strsplit(config$cols_to_keep, ":|,|\\.|-|_"))
 position = as.numeric(temp[1]):as.numeric(temp[2])
 omics <- omics %>% select(position)
 
-## filter and normalize
+## filter
 omics <- omics[rowSums(omics) > config$min_tot_n,] #keep only small RNA with more than 10 counts
 
+## normalize
+new_scale <- function(x) {x/sum(x)}
 if (config$normalize) {
   
-  std = sapply(omics, sd)
-  omics <- (omics-colMeans(omics))
-  summary(colMeans(omics))
-  omics <- sweep(omics, 2, std, FUN="/")
-  summary(sapply(omics, mean)) 
+  # std = sapply(omics, sd)
+  # omics <- (omics-colMeans(omics))
+  # summary(colMeans(omics))
+  # omics <- sweep(omics, 2, std, FUN="/")
+  # summary(sapply(omics, mean)) 
+  
+  omics <- omics |>
+    mutate(across(where(is.numeric), scale))
+  
+  # omics <- omics |>
+  #   mutate(across(where(is.numeric), new_scale))
 }
 
 ids = names(omics)
@@ -127,11 +135,22 @@ names(mdsD) <- c("dim1","dim2","dim3")
 mdsD$id = rownames(mdsD)
 mdsD <- relocate(mdsD, "id")
 
+if(grepl(pattern = ",", x = config$cov_continuous)) {
+  
+  continuous_covs = unlist(strsplit(config$cov_continuous,split = ","))
+} else continuous_covs = config$cov_continuous
+
+## impute categorical variable
+fct_x = select(metadata, !!config$cov_factor, all_of(elements))
+preProcValues <- preProcess(fct_x, method = c("medianImpute"))
+imputed_fecal_score = predict(preProcValues, select(fct_x, !!config$cov_factor)) |> pull()
+fct_x <- mutate(fct_x, !!config$cov_factor := imputed_fecal_score)
+
 temp <- metadata |> 
   select(!!config$sample_column, 
-         !!config$grouping_variable, 
-         !!config$cov_continuous, 
-         !!config$cov_factor)
+         !!config$grouping_variable)
+
+temp <- bind_cols(temp, fct_x)
 
 left_col <- "id"
 right_col = config$sample_column
@@ -147,16 +166,16 @@ mdsD <- mdsD |>
 
 ### HULLS
 find_hull <- function(mdsD) mdsD[chull(mdsD$dim1, mdsD$dim2), ]
-hulls <- ddply(mdsD, "timepoint", find_hull)
+hulls <- ddply(mdsD, "fecal_score", find_hull)
 
 hulls <- mdsD %>%
-  group_by(timepoint) %>%
+  group_by(!!config$cov_factor) %>%
   group_modify(~ find_hull(.x)) %>%
   ungroup()
 
 ph <- ggplot(mdsD,aes(x=dim1,y=dim2))
-ph <- ph + geom_point(aes(colour=treatment),size=4)
-ph <- ph + geom_polygon(data=hulls, alpha=.2, aes(fill=timepoint))
+ph <- ph + geom_point(aes(colour=.data[[config$grouping_variable]]),size=4)
+ph <- ph + geom_polygon(data=hulls, alpha=.2, aes(fill = .data[[config$cov_factor]]))
 # ph <- ph + scale_fill_discrete("Status",labels=c("euthyroid","hyperthyroid"))
 ph <- ph + labs(colour = "treatment") #+ ggtitle("MDS of miRNA+proteomics-based distances")
 ph <- ph + theme(
@@ -170,26 +189,24 @@ ph
 ## try with timepoint and weight as continuous, fecal score as categorical (or viceversa)
 
 ### CCA
-M <- mm[,c(2:4)]
-H <- mm[,c(6:10)]
+H <- select(mdsD, all_of(continuous_covs))
 preProcValues <- preProcess(H, method = c("knnImpute"))
 H <- predict(preProcValues, H)
-# M <- t(apply(M,1,rescale))
 
-simX <- as.matrix(cMP[,-1])
+simX <- as.matrix(M)
 
-vec <- sample(ncol(simX), 20)
+vec <- sample(ncol(simX), 50)
 X <- simX[,vec]
 
-cca1 <- cca(X ~ TRAB+TSH+FT4, data=H, scale=TRUE)
+cca1 <- cca(X ~ timepoint+weight, data=H, scale=TRUE)
 
 V <- as.data.frame(cca1$CCA$wa)
 V$id <- row.names(V)
-V <- merge(V,mm[,c(1,5,6,10)],by="id")
+V <- inner_join(V,mdsD,by="id")
 
 B <- as.data.frame(cca1$CCA$biplot)
 
-pCCA <- ggplot(V,aes(CCA1,CCA2)) + geom_point(aes(colour=status,size=3))
+pCCA <- ggplot(V,aes(CCA1,CCA2)) + geom_point(aes(colour = .data[[config$grouping_variable]],size=3))
 pCCA <- pCCA + geom_segment(data = B, aes(xend = B[ ,"CCA1"], yend=B[ ,"CCA2"]),
                             x=0, y=0, colour="black",
                             arrow=arrow(angle=25, length=unit(0.5, "cm")))
@@ -199,7 +216,7 @@ pCCA <- pCCA + theme(strip.text = element_text(size=20),
                      axis.title=element_text(size=17),
                      axis.text=element_text(size=14))
 pCCA <- pCCA + theme(legend.position="none")
-
+pCCA
 
 multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
   require(grid)
