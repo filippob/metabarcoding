@@ -69,7 +69,10 @@ writeLines(" - set up")
 HOME <- Sys.getenv("HOME")
 repo = file.path(HOME, config$repo)
 prjfolder = file.path(HOME, config$prjfolder)
-outdir = file.path(prjfolder,config$analysis_folder)
+outdir = file.path(prjfolder,config$analysis_folder, "results")
+
+## create output directory if it doesn't exist
+dir.create(outdir, showWarnings = FALSE)
 
 writeLines(" - saving configs")
 fname = paste("cca.config_",config$suffix,".RData", sep="")
