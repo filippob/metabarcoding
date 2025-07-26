@@ -4,6 +4,7 @@ library("broom")
 library("dplyr")
 library("vegan")
 library("caret")
+library("ggpubr")
 library("ggrepel")
 library("tidyverse")
 library("tidymodels")
@@ -49,8 +50,8 @@ if (length(args) >= 1) {
     suffix = "calves_colostrum",
     cols_to_keep = "2:113", ## position of omics cols to keep (numeric columns): start end position (separated by :,.-_)
     normalize = FALSE, ## should we normalise omics data?
-    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 200,
+    distance = "minkowski",
+    min_tot_n = 50,
     min_sample = 2,
     project = "", ##! use only for subsetting
     cov_factor = "fecal_score",
@@ -64,17 +65,19 @@ if (length(args) >= 1) {
   ))
 }
 
-
+writeLines(" - set up")
 HOME <- Sys.getenv("HOME")
 repo = file.path(HOME, config$repo)
 prjfolder = file.path(HOME, config$prjfolder)
 outdir = file.path(prjfolder,config$analysis_folder)
 
+writeLines(" - saving configs")
 fname = paste("cca.config_",config$suffix,".RData", sep="")
 fname = file.path(outdir, fname)
 save(config, file = fname)
 
 ## METADATA
+writeLines(" - read metadata")
 fname = file.path(HOME, config$prjfolder, config$conf_file)
 metadata <- fread(fname)
 if(config$sample_prefix != "") {
@@ -84,10 +87,12 @@ if(config$sample_prefix != "") {
 }
 
 ### OMICS DATA
+writeLines(" - read omics data")
 fname = file.path(HOME, config$prjfolder, config$omics_file)
 omics <- fread(fname)
 feature_ids = select(omics ,1) |> pull() ## ordered vector of omics features
 
+writeLines(" - data preprocessing")
 ## select columns
 temp = unlist(strsplit(config$cols_to_keep, ":|,|\\.|-|_"))
 position = as.numeric(temp[1]):as.numeric(temp[2])
@@ -117,12 +122,17 @@ ids = names(omics)
 M <- t(omics)
 
 ## DISTANCE MATRIX
-D <- dist(M, method="euclidean", diag = TRUE)
+writeLines(" - calculating distances")
+D <- dist(M, method=config$distance, diag = TRUE)
 D <- data.matrix(D)
 
-heatmap(D,col=heat.colors(75))
+fname = file.path(outdir, "heatmap_distance.png")
+png(fname)
+heatmap(D, col=heat.colors(75))
+dev.off()
 
 ## MULTIDIMENSIONAL SCALING
+writeLines(" - Multidimensional scaling of the distance matrix")
 ## eigenvalues
 A <- cmdscale(D, eig=TRUE, k=3)
 
@@ -141,7 +151,7 @@ if(grepl(pattern = ",", x = config$cov_continuous)) {
 } else continuous_covs = config$cov_continuous
 
 ## impute categorical variable
-fct_x = select(metadata, !!config$cov_factor, all_of(elements))
+fct_x = select(metadata, !!config$cov_factor, all_of(continuous_covs))
 preProcValues <- preProcess(fct_x, method = c("medianImpute"))
 imputed_fecal_score = predict(preProcValues, select(fct_x, !!config$cov_factor)) |> pull()
 fct_x <- mutate(fct_x, !!config$cov_factor := imputed_fecal_score)
@@ -166,8 +176,6 @@ mdsD <- mdsD |>
 
 ### HULLS
 find_hull <- function(mdsD) mdsD[chull(mdsD$dim1, mdsD$dim2), ]
-hulls <- ddply(mdsD, "fecal_score", find_hull)
-
 hulls <- mdsD %>%
   group_by(!!config$cov_factor) %>%
   group_modify(~ find_hull(.x)) %>%
@@ -177,26 +185,32 @@ ph <- ggplot(mdsD,aes(x=dim1,y=dim2))
 ph <- ph + geom_point(aes(colour=.data[[config$grouping_variable]]),size=4)
 ph <- ph + geom_polygon(data=hulls, alpha=.2, aes(fill = .data[[config$cov_factor]]))
 # ph <- ph + scale_fill_discrete("Status",labels=c("euthyroid","hyperthyroid"))
-ph <- ph + labs(colour = "treatment") #+ ggtitle("MDS of miRNA+proteomics-based distances")
+ph <- ph + labs(colour = "treatment")
 ph <- ph + theme(
-  legend.title=element_text(size=22),
-  legend.text=element_text(size=18),
-  axis.title=element_text(size=17),
-  axis.text=element_text(size=14))
-ph
+  legend.title=element_text(size=12),
+  legend.text=element_text(size=10),
+  axis.title=element_text(size=12),
+  axis.text=element_text(size=10))
+# ph
 
 ## UP TO HERE
 ## try with timepoint and weight as continuous, fecal score as categorical (or viceversa)
 
 ### CCA
+writeLines(" - Canonical Correspondence Analysis")
 H <- select(mdsD, all_of(continuous_covs))
 preProcValues <- preProcess(H, method = c("knnImpute"))
 H <- predict(preProcValues, H)
 
 simX <- as.matrix(M)
 
-vec <- sample(ncol(simX), 50)
+vec <- sample(ncol(simX), nrow(M)+60)
 X <- simX[,vec]
+
+## safety net (filter to make sure all row sums are larger than zero)
+vec <- rowSums(X) > 0
+X <- X[vec,]
+H <- H[vec,]
 
 cca1 <- cca(X ~ timepoint+weight, data=H, scale=TRUE)
 
@@ -213,53 +227,57 @@ pCCA <- pCCA + geom_segment(data = B, aes(xend = B[ ,"CCA1"], yend=B[ ,"CCA2"]),
 pCCA <- pCCA + geom_text(data=B, aes(x=B[ ,"CCA1"], y=B[ ,"CCA2"], label=row.names(B)), 
                          size=6, vjust=1.5, colour="black")
 pCCA <- pCCA + theme(strip.text = element_text(size=20),
-                     axis.title=element_text(size=17),
-                     axis.text=element_text(size=14))
+                     axis.title=element_text(size=12),
+                     axis.text=element_text(size=8))
 pCCA <- pCCA + theme(legend.position="none")
-pCCA
+# pCCA
+# 
+# multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+#   require(grid)
+#   
+#   # Make a list from the ... arguments and plotlist
+#   plots <- c(list(...), plotlist)
+#   
+#   numPlots = length(plots)
+#   
+#   # If layout is NULL, then use 'cols' to determine layout
+#   if (is.null(layout)) {
+#     # Make the panel
+#     # ncol: Number of columns of plots
+#     # nrow: Number of rows needed, calculated from # of cols
+#     layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+#                      ncol = cols, nrow = ceiling(numPlots/cols))
+#   }
+#   
+#   if (numPlots==1) {
+#     print(plots[[1]])
+#     
+#   } else {
+#     # Set up the page
+#     grid.newpage()
+#     pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+#     
+#     # Make each plot, in the correct location
+#     for (i in 1:numPlots) {
+#       # Get the i,j matrix positions of the regions that contain this subplot
+#       matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+#       
+#       print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+#                                       layout.pos.col = matchidx$col))
+#     }
+#   }
+# }
+# 
+#  
+# multiplot(pCCA,ph,cols=2)
 
-multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
-  require(grid)
-  
-  # Make a list from the ... arguments and plotlist
-  plots <- c(list(...), plotlist)
-  
-  numPlots = length(plots)
-  
-  # If layout is NULL, then use 'cols' to determine layout
-  if (is.null(layout)) {
-    # Make the panel
-    # ncol: Number of columns of plots
-    # nrow: Number of rows needed, calculated from # of cols
-    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
-                     ncol = cols, nrow = ceiling(numPlots/cols))
-  }
-  
-  if (numPlots==1) {
-    print(plots[[1]])
-    
-  } else {
-    # Set up the page
-    grid.newpage()
-    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
-    
-    # Make each plot, in the correct location
-    for (i in 1:numPlots) {
-      # Get the i,j matrix positions of the regions that contain this subplot
-      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
-      
-      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
-                                      layout.pos.col = matchidx$col))
-    }
-  }
-}
+writeLines(" - saving results")
+fname = file.path(outdir, "cca_plot.png")
+g <- ggarrange(pCCA, ph, nrow = 1, common.legend = FALSE, labels = c("A", "B"), widths = c(0.45,0.55))
+ggsave(filename = fname, plot = g, device = "png", width = 9, height = 6, units = "in", dpi = 150)
 
- 
-multiplot(pCCA,ph,cols=2)
+fname = file.path(outdir, "cca_results.txt")
+fwrite(x = V, file = fname)
 
-
-
-
-
-
+print("DONE!!")
 
