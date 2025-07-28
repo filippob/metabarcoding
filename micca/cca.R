@@ -56,10 +56,10 @@ if (length(args) >= 1) {
     min_sample = 2,
     project = "", ##! use only for subsetting
     cov_factor = "fecal_score",
-    cov_continuous = "timepoint,weight",
+    cov_continuous = "weight",
     sample_column = "sample_id",
     sample_prefix = "sample-",
-    grouping_variable = "treatment",
+    grouping_variable = "timepoint",
     base_treatment = 5, ## reference level within timepoint (e.g. control)
     base_timepoint = 1, ## reference level within treatment (e.g. T0)
     force_overwrite = FALSE
@@ -177,7 +177,6 @@ mdsD <- mdsD |>
   mutate(!!sym(config$cov_factor) := as.factor(.data[[config$cov_factor]]),
          !!sym(config$grouping_variable) := as.factor(.data[[config$grouping_variable]]))
 
-
 ### HULLS
 find_hull <- function(mdsD) mdsD[chull(mdsD$dim1, mdsD$dim2), ]
 hulls <- mdsD %>%
@@ -202,9 +201,24 @@ ph <- ph + theme(
 
 ### CCA
 writeLines(" - Canonical Correspondence Analysis")
-H <- select(mdsD, all_of(continuous_covs))
-preProcValues <- preProcess(H, method = c("knnImpute"))
-H <- predict(preProcValues, H)
+
+if(length(continuous_covs) > 1) {
+  
+  H <- select(mdsD, all_of(continuous_covs)) 
+  preProcValues <- preProcess(H, method = c("knnImpute"))
+  H <- predict(preProcValues, H)
+  
+} else if (length(config$cov_factor) >=1 & config$cov_factor != "") {
+  
+  H <- select(mdsD, all_of(continuous_covs), all_of(config$cov_factor)) 
+  preProcValues <- preProcess(H, method = c("medianImpute"))
+  H <- predict(preProcValues, H)
+  H <- select(H, all_of(continuous_covs))
+  
+} else {
+  
+  H <- select(mdsD, all_of(continuous_covs)) 
+}
 
 simX <- as.matrix(M)
 
