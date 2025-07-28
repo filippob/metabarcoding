@@ -229,26 +229,47 @@ X <- simX[,vec]
 ## safety net (filter to make sure all row sums are larger than zero)
 vec <- rowSums(X) > 0
 X <- X[vec,]
-H <- H[vec,]
+H <- filter(H, vec)
 
-cca1 <- cca(X ~ timepoint+weight, data=H, scale=TRUE)
+model = as.formula(paste("X ~", paste(continuous_covs, collapse="+")))
+cca1 <- cca(model, data=H, scale=TRUE)
 
-V <- as.data.frame(cca1$CCA$wa)
-V$id <- row.names(V)
-V <- inner_join(V,mdsD,by="id")
+if (length(continuous_covs) == 2) {
+  
+  V <- as.data.frame(cca1$CCA$wa)
+  V$id <- row.names(V)
+  V <- inner_join(V,mdsD,by="id")
+  
+  B <- as.data.frame(cca1$CCA$biplot)
+  
+  pCCA <- ggplot(V,aes(CCA1,CCA2)) + geom_point(aes(colour = .data[[config$grouping_variable]],size=3))
+  pCCA <- pCCA + geom_segment(data = B, aes(xend = B[ ,"CCA1"], yend=B[ ,"CCA2"]),
+                              x=0, y=0, colour="black",
+                              arrow=arrow(angle=25, length=unit(0.5, "cm")))
+  pCCA <- pCCA + geom_text(data=B, aes(x=B[ ,"CCA1"], y=B[ ,"CCA2"], label=row.names(B)), 
+                           size=6, vjust=1.5, colour="black")
+  pCCA <- pCCA + theme(strip.text = element_text(size=20),
+                       axis.title=element_text(size=12),
+                       axis.text=element_text(size=8))
+  pCCA <- pCCA + theme(legend.position="none")
+  
+} else if (length(continuous_covs) == 1) {
+  
+  V <- as.data.frame(cca1$CA$u[,c(1,2)])
+  V$id <- row.names(V)
+  V <- inner_join(V,mdsD,by="id")
+  
+  B <- as.data.frame(cca1$CCA$biplot)
+  
+  pCCA <- ggplot(V, aes(CA1,CA2)) + geom_point(aes(colour = .data[[config$grouping_variable]], size=3))
+  pCCA <- pCCA + geom_segment(data = B, aes(xend = B[ ,"CCA1"]), yend = 0, x=0, y=0, colour="black", arrow=arrow(angle=25, length=unit(0.5, "cm")))
+  pCCA <- pCCA + geom_text(data=B, aes(x=B[ ,"CCA1"], y=B[ ,"CCA1"], label=row.names(B)), size=6, vjust=1.5, colour="black")
+  pCCA <- pCCA + theme(strip.text = element_text(size=20),
+                       axis.title=element_text(size=12),
+                       axis.text=element_text(size=8))
+  pCCA <- pCCA + theme(legend.position="none")
+}
 
-B <- as.data.frame(cca1$CCA$biplot)
-
-pCCA <- ggplot(V,aes(CCA1,CCA2)) + geom_point(aes(colour = .data[[config$grouping_variable]],size=3))
-pCCA <- pCCA + geom_segment(data = B, aes(xend = B[ ,"CCA1"], yend=B[ ,"CCA2"]),
-                            x=0, y=0, colour="black",
-                            arrow=arrow(angle=25, length=unit(0.5, "cm")))
-pCCA <- pCCA + geom_text(data=B, aes(x=B[ ,"CCA1"], y=B[ ,"CCA2"], label=row.names(B)), 
-                         size=6, vjust=1.5, colour="black")
-pCCA <- pCCA + theme(strip.text = element_text(size=20),
-                     axis.title=element_text(size=12),
-                     axis.text=element_text(size=8))
-pCCA <- pCCA + theme(legend.position="none")
 # pCCA
 # 
 # multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
