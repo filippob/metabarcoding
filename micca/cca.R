@@ -281,7 +281,7 @@ fname = file.path(outdir, paste(config$grouping_variable, "cca_plot.png", sep="_
 g <- ggarrange(pCCA, ph, nrow = 1, common.legend = FALSE, labels = c("A", "B"), widths = c(0.45,0.55))
 ggsave(filename = fname, plot = g, device = "png", width = 9, height = 6, units = "in", dpi = 150)
 
-fname = file.path(outdir, paste(config$grouping_variable, "cca_results.txt"), sep="_")
+fname = file.path(outdir, paste(config$grouping_variable, "cca_results.txt", sep="_"))
 fwrite(x = V, file = fname)
 
 print("DONE!!")
