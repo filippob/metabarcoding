@@ -44,7 +44,7 @@ gunzip *.fastq.gz
 
 ## SINGULARITY CONTAINER ##
 echo " - joining reads"
-## -l: minimum overlap lenght (bps, default = 32)
+## -l: minimum overlap length (bps, default = 32)
 ## -d max n. of allowed mismatches in the overlap region (default = 8)
 ## -t: n. of threads to use (1 to 256)
 singularity run $sing_container micca mergepairs -i ${inputdir}/*_${r1}.fastq -o ${outdir}/assembled_16S.fastq -p _${r1} -e _${r2} -l 32 -d 8 -t 7
