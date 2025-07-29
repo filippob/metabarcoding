@@ -44,23 +44,23 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/vitelli_giulia_sala_2025",
+    prjfolder = "Documents/Suikerbiet/its_2025",
     analysis_folder = "Analysis",
     conf_file = "Config/mapping_file.csv",
     omics_file = "Analysis/otu_norm_CSS.csv",
-    suffix = "calves_colostrum",
-    cols_to_keep = "2:113", ## position of omics cols to keep (numeric columns): start end position (separated by :,.-_)
-    normalize = FALSE, ## should we normalise omics data?
-    distance = "minkowski",
-    min_tot_n = 50,
+    suffix = "its1f-its2",
+    cols_to_keep = "2:33", ## position of omics cols to keep (numeric columns): start end position (separated by :,.-_)
+    normalize = TRUE, ## should we normalise omics data?
+    distance = "euclidean",
+    min_tot_n = 10,
     min_sample = 2,
     project = "", ##! use only for subsetting
-    cov_factor = "fecal_score",
-    cov_continuous = "weight",
-    sample_column = "sample_id",
-    sample_prefix = "sample-",
-    grouping_variable = "timepoint",
-    base_treatment = 5, ## reference level within timepoint (e.g. control)
+    cov_factor = "timepoint",
+    cov_continuous = "",
+    sample_column = "sample-id",
+    sample_prefix = "",
+    grouping_variable = "Type",
+    base_treatment = 1, ## reference level within timepoint (e.g. control)
     base_timepoint = 1, ## reference level within treatment (e.g. T0)
     force_overwrite = FALSE
   ))
@@ -155,10 +155,13 @@ if(grepl(pattern = ",", x = config$cov_continuous)) {
 } else continuous_covs = config$cov_continuous
 
 ## impute categorical variable
-fct_x = select(metadata, !!config$cov_factor, all_of(continuous_covs))
+if (continuous_covs != "") {
+  fct_x = select(metadata, !!config$cov_factor, all_of(continuous_covs))
+} else fct_x = select(metadata, !!config$cov_factor)
+
 preProcValues <- preProcess(fct_x, method = c("medianImpute"))
-imputed_fecal_score = predict(preProcValues, select(fct_x, !!config$cov_factor)) |> pull()
-fct_x <- mutate(fct_x, !!config$cov_factor := imputed_fecal_score)
+imputed_var = predict(preProcValues, select(fct_x, !!config$cov_factor)) |> pull()
+fct_x <- mutate(fct_x, !!config$cov_factor := imputed_var)
 
 temp <- metadata |> 
   select(!!config$sample_column, 
@@ -194,7 +197,7 @@ ph <- ph + theme(
   legend.text=element_text(size=10),
   axis.title=element_text(size=12),
   axis.text=element_text(size=10))
-# ph
+ph
 
 ## UP TO HERE
 ## try with timepoint and weight as continuous, fecal score as categorical (or viceversa)

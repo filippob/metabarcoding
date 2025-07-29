@@ -14,7 +14,6 @@ library("data.table")
 library("metagenomeSeq")
 
 ## PARAMETERS
-## PARAMETERS
 args = commandArgs(trailingOnly=TRUE)
 if (length(args) >= 1) {
   
@@ -39,20 +38,21 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/vitelli_giulia_sala_2025",
+    prjfolder = "Documents/Suikerbiet/its_2025",
     analysis_folder = "Analysis",
     otu_norm_file = "otu_norm_CSS.csv",
     conf_file = "Config/mapping_file.csv",
-    suffix = "calves_colostrum",
+    suffix = "its1f-its2",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
-    sample_column = "sample_id",
-    treatment_column = "treatment",
+    sample_column = "sample-id",
+    sample_prefix = "",
+    treatment_column = "Type",
     grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    exp_levels = paste(c("0", "1", "2"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !! Not treated,Treated
+    exp_levels = paste(c("Resistant", "Susceptible"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !! Not treated,Treated
     sig_threshold = 0.01,
     force_overwrite = FALSE
   ))
@@ -93,14 +93,14 @@ otus <- filter(otus, Phylum != "")
 
 M <- as.data.frame(otus[,-c("tax_id", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")])
 
-vec <- colnames(M) %in% paste("sample",metadata$`sample-id`,sep="-")
+vec <- colnames(M) %in% paste(config$sample_prefix,metadata$`sample-id`,sep="")
 M <- M[,vec]
 
 ## !! remember: due to how matrices are stored internally in R, M/colSums(M) won't give the expected results --> use sweep instead !!
 M <- sweep(M, MARGIN=2, FUN="/", STATS=colSums(M))
 M <- cbind.data.frame("Phylum"=otus$Phylum, M)
 
-metadata$sample <- paste("sample", metadata$`sample-id`, sep = "-")
+metadata$sample <- paste(config$sample_prefix, metadata$`sample-id`, sep = "")
 mO <- M %>% gather(key = "sample", value = "counts", -c("Phylum"))
 
 if("timepoint" %in% names(metadata)) {
@@ -172,73 +172,6 @@ fwrite(x = arrange(D, treatment, desc(avg)), file = fname, sep = ",")
 
 to_save <- list("phylum_relabund"=D)
 
-## F:B ratio
-names(otus)
-
-## subset otu table (only samples present in the mapping file)
-vec <- c(TRUE,vec,rep(TRUE,7))
-otus <- as.data.frame(otus)
-otus <- otus[,vec]
-
-temp <- otus |>
-  select(-c(tax_id,Kingdom, Class, Order, Family, Genus, Species)) |>
-  gather(key = "sample", value = "counts", -c("Phylum")) |>
-  filter(Phylum != "")
-
-temp <- temp %>% inner_join(select(metadata, -`sample-id`), by = c("sample" = "sample"))
-
-if (config$grouping_variable2 != "") {
-  fb <- temp |>
-    filter(Phylum %in% c("Firmicutes", "Bacteroidetes")) |>
-    group_by(sample, Phylum) |>
-    summarise(tot = sum(counts), treatment = unique(treatment), timepoint = unique(timepoint)) |>
-    spread(key = Phylum, value = tot) |>
-    mutate(FB = Firmicutes/Bacteroidetes, treatment = factor(treatment, levels = exp_levels))
-} else {
-  
-  fb <- temp |>
-    filter(Phylum %in% c("Firmicutes", "Bacteroidetes")) |>
-    group_by(sample, Phylum) |>
-    summarise(tot = sum(counts), treatment = unique(treatment)) |>
-    spread(key = Phylum, value = tot) |>
-    mutate(FB = Firmicutes/Bacteroidetes, treatment = factor(treatment, levels = exp_levels))
-}
-
-to_save[["data_for_fb"]] = temp
-to_save[["fb_res"]] = fb
-
-p1 <- ggplot(filter(fb, FB != Inf), aes(x = FB, y = treatment, fill = treatment)) 
-p1 <- p1 + geom_density_ridges(aes(point_color = treatment, point_fill = treatment, point_shape = treatment),
-                               alpha = .2, point_alpha = 1, jittered_points = TRUE) 
-if (config$grouping_variable2 != "") p1 <- p1 + facet_wrap(~timepoint, scales = "free")
-p1 <- p1 + scale_point_color_hue(l = 40)
-p1 <- p1 + scale_discrete_manual(aesthetics = "point_shape", values = (seq(1,length(exp_levels))+20))
-p1
-
-fname = paste("fb_density_", config$suffix, ".png", sep="")
-fname = file.path(outdir, fname)
-ggsave(filename = fname, plot = p, device = "png")
-
-if (config$grouping_variable2 != "") {
-  temp <- filter(fb, FB != Inf) |>
-    group_by(timepoint) |>
-    do(tidy(lm(FB ~ treatment, data = .))) |>
-    filter(term != "(Intercept)") |>
-    mutate(term = gsub('treatment','',term)) |>
-    rename(treatment = term) |>
-    select(timepoint, treatment, p.value)
-} else {
-  
-  temp <- filter(fb, FB != Inf) |>
-    do(tidy(lm(FB ~ treatment, data = .))) |>
-    filter(term != "(Intercept)") |>
-    mutate(term = gsub('treatment','',term)) |>
-    rename(treatment = term) |>
-    select(treatment, p.value)
-}
-
-writeLines(" - FB ratio")
-print(temp)
 
 ##############################
 ## taxonomic levels abundances
@@ -364,11 +297,12 @@ if (config$grouping_variable2 != "") {
     gather(key = "treatment", value = "difference", -c(Genus))
 }
 
+
 contrasts <- contrasts |> inner_join(std, by = c("Genus", "timepoint")) |>
-  rename_with(~str_c("std_", .), .cols = c(`0`,`1`,`2`))
+  rename_with(~str_c("std_", .), .cols = all_of(exp_levels))
   
  contrasts <- contrasts |> inner_join(sample_size, by = c("Genus", "timepoint")) |>
-   rename_with(~str_c("n_", .), .cols = c(`0`,`1`,`2`))
+   rename_with(~str_c("n_", .), .cols = all_of(exp_levels))
   # rename(n_cg = `Not treated`, n_tg = Treated)
 
 # contrasts <- contrasts |>
