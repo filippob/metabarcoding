@@ -41,20 +41,21 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/luiz",
-    analysis_folder = "Analysis/results",
+    prjfolder = "Documents/Suikerbiet/its_2025/its_kyo",
+    analysis_folder = "Analysis",
     otu_norm_file = "otu_norm_CSS.csv",
     conf_file = "Config/mapping_file.csv",
-    suffix = "rumen",
+    suffix = "its-kyo",
     nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 10,
     min_sample = 2,
     project = "",
-    sample_column = "sample_id",
-    treatment_column = "treatment",
-    grouping_variable2 = "dose",
+    sample_column = "sample-id",
+    sample_prefix = "",
+    treatment_column = "Type",
+    grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    exp_levels = paste(c("CONTROL", "A4", "A5", "A6", "A10"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !! Not treated,Treated
+    exp_levels = paste(c("Susceptible", "Resistant"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !! Not treated,Treated
     force_overwrite = FALSE
   ))
 }
@@ -94,14 +95,14 @@ otus <- filter(otus, Phylum != "")
 
 M <- as.data.frame(otus[,-c("tax_id", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")])
 
-vec <- colnames(M) %in% paste("sample",metadata$`sample-id`,sep="-")
+vec <- colnames(M) %in% paste(config$sample_prefix,metadata$`sample-id`,sep="")
 M <- M[,vec]
 
 ## !! remember: due to how matrices are stored internally in R, M/colSums(M) won't give the expected results --> use sweep instead !!
 M <- sweep(M, MARGIN=2, FUN="/", STATS=colSums(M))
 M <- cbind.data.frame("Phylum"=otus$Phylum, M)
 
-metadata$sample <- paste("sample", metadata$`sample-id`, sep = "-")
+metadata$sample <- paste(config$sample_prefix, metadata$`sample-id`, sep = "")
 mO <- M %>% gather(key = "sample", value = "counts", -c("Phylum"))
 
 if("timepoint" %in% names(metadata)) {
@@ -147,7 +148,7 @@ D$Phylum <- factor(D$Phylum, levels = phylums$Phylum)
 p <- ggplot(D, aes(x=factor(1), y=avg, fill=Phylum)) + geom_bar(width=1,stat="identity", alpha = 0.8)
 p <- p + coord_polar(theta='y')
 if (config$grouping_variable2 != "") {
-  p <- p + facet_grid(dose~treatment)
+  p <- p + facet_grid(.data[[config$grouping_variable2]]~.data[[config$grouping_variable1]])
 } else p <- p + facet_wrap(~treatment)
 p <- p + xlab("relative abundances") + ylab("") + labs(title = plot_title)
 p <- p + scale_fill_manual(values = my_palette)
