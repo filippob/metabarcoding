@@ -33,16 +33,17 @@ if (length(args) >= 1) {
   config = NULL
   config = rbind(config, data.frame(
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/nucleo_bro",
-    analysis_folder = "Analysis/micca/",
+    prjfolder = "Documents/Suikerbiet/its_2025",
+    analysis_folder = "Analysis",
     conf_file = "Config/mapping_file.csv",
-    suffix = "nucleo_bro",
+    suffix = "its1f-its2",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 10,
-    min_sample = 2,
-    covariates = "", ## string with covariates separated by a comme
+    min_tot_n = 15,
+    min_sample = 3,
+    covariates = "", ## string with covariates separated by a comma
     project = "",
     treatment_column = "treatment",
+    timepoint_column = "timepoint",
     force_overwrite = FALSE
   ))
 }
@@ -91,7 +92,9 @@ x <- sample_data(otu_tax_sample_norm)
 sample_data(otu_norm_subset)$treatment <- dplyr::pull(x, !!config$treatment_column )
 sample_data(otu_norm_subset) |> head() |> print()
 
-steps = unique(sample_data(otu_norm_subset)$timepoint)
+steps = sample_data(otu_norm_subset) |>
+  pull(!!config$timepoint_column) |>
+  unique()
 
 ###############
 ## distances ##
@@ -152,7 +155,7 @@ dx = spread(dd, key = "col", value = "value")
 # temp = dplyr::select(metadata, c(`sample-id`,timepoint,Antibiotic)) |> rename(treatment = Antibiotic)
 if(config$nfactors > 1) {
   
-  temp = dplyr::select(metadata, c(`sample-id`,timepoint, treatment, all_of(covariates)))
+  temp = dplyr::select(metadata, c(`sample-id`, timepoint, treatment, all_of(covariates)))
 } else temp = dplyr::select(metadata, c(`sample-id`,treatment, all_of(covariates)))
 
 dx <- dx %>% inner_join(temp, by = c("row" = "sample-id"))
@@ -172,7 +175,7 @@ write(x = "PERMANOVA", file = fname)
 if (config$nfactors > 1) {
   
   nvars = config$nfactors + length(covariates)
-  matx= data.matrix(temp[,seq(1,ncol(temp)-nvars)])
+  matx = data.matrix(temp[,seq(1,ncol(temp)-nvars)])
   
   if(config$covariates != "") { 
     covar = paste(gsub(",", "+", config$covariates))
@@ -274,7 +277,7 @@ for (k in steps) {
   print(paste("processing stratifying variable",k))
   temp <- subset_samples(otu_norm_subset, timepoint == k)
   mtd <- sample_data(temp)
-  mtd$treatment = c("TG","CG")[match(mtd$treatment,unique(mtd$treatment))]
+  mtd$treatment = c("0","1","2")[match(mtd$treatment,unique(mtd$treatment))]
   distances = distance(temp, method="bray", type = "samples")
   iMDS  <- ordinate(temp, "MDS", distance=distances)
   mds_subset <- as_tibble(iMDS$vectors)
