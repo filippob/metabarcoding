@@ -44,17 +44,17 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/sonia_andres_cow_gut_microbiome",
+    prjfolder = "Documents/Suikerbiet/its_2025",
     analysis_folder = "Analysis",
     conf_file = "Config/mapping_file.csv",
-    suffix = "cow_feces",
-    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 15,
+    suffix = "its1f-its2",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    min_tot_n = 20,
     min_sample = 3,
     project = "",
     treatment_column = "treatment",
     sample_column = "sample",
-    grouping_variable2 = "",
+    grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
     force_overwrite = FALSE
   ))
@@ -96,12 +96,6 @@ alpha = estimate_richness(otu_tax_sample, split = TRUE)
 alpha$"sample-id" = row.names(alpha)
 alpha = relocate(alpha, `sample-id`)
 fwrite(x = alpha, file = file.path(outdir, "alpha.csv"))
-
-if (grouping_variable2 != "") {
-  p <- plot_richness(otu_tax_sample, x=grouping_variable2, color=grouping_variable1)
-} else p <- plot_richness(otu_tax_sample, x=grouping_variable1, color=grouping_variable1)
-
-ggsave(filename = file.path(outdir, "figures", "alpha_plot.png"), plot = p, device = "png", width = 11, height = 7)
 
 ## Preprocessing: e.g. filtering
 ## making normalization folder
