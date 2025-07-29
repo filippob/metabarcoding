@@ -32,20 +32,20 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/cremonesi/luiz",
-    analysis_folder = "Analysis/results",
+    prjfolder = "Documents/Suikerbiet/its_2025",
+    analysis_folder = "Analysis",
     conf_file = "Config/mapping_file.csv",
-    suffix = "rumen",
-    nfactors = 1, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
+    suffix = "its1f-its2",
+    nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 10,
     min_sample = 2,
     project = "", ##! use only for subsetting
-    treatment_column = "treatment",
-    sample_column = "sample_id",
-    grouping_variable2 = "",
+    treatment_column = "Type",
+    sample_column = "sample-id",
+    grouping_variable2 = "timepoint",
     grouping_variable1 = "treatment",
-    covariates = "dose", ## string with covariates separated by a comme
-    base_treatment = 5, ## reference level within timepoint (e.g. control)
+    covariates = "", ## string with covariates separated by a comme
+    base_treatment = 1, ## reference level within timepoint (e.g. control)
     base_timepoint = 1, ## reference level within treatment (e.g. T0)
     force_overwrite = FALSE
   ))
@@ -120,7 +120,7 @@ p <- p + scale_color_manual(values = c("#00AFBB", "#E7B800", "#FC4E07", "green",
 if (grouping_variable2 != "") {
   p <- p + facet_grid(metric~.data[[grouping_variable2]], scales = "free")
 } else p <- p + facet_wrap(~metric, scales = "free")
-if (covariates != "" & grouping_variable2 == "") {
+if ((!is.null(covariates) & length(covariates) > 0) & grouping_variable2 == "") {
   p <- p + facet_grid(metric~.data[[covariates]], scales = "free")
 } else p <- p + facet_wrap(~metric, scales = "free")
 p <- p + theme(axis.text.x = element_text(angle = 0))
@@ -163,27 +163,37 @@ if (config$nfactors == 1) {
   D <- malpha %>%
     group_by(metric) %>%
     do(tidy(lm(value ~ .data[[grouping_variable1]] + .data[[covariates]], data = .))) %>%
-    filter(term != "(Intercept)", term != "Residuals") |>
-    filter(!str_detect(term, paste(covariates, collapse = "|")))
+    filter(term != "(Intercept)", term != "Residuals")
+  
+  if (!is.null(covariates) & length(covariates) > 0) D <- filter(D, !str_detect(term, paste0(covariates, collapse = "|")))
   
   df <- malpha %>%
     group_by(metric) %>%
     do(tidy(anova(lm(value ~ .data[[grouping_variable1]] + .data[[covariates]], data = .)))) %>%
-    filter(term != "(Intercept)", term != "Residuals") |>
-    filter(!str_detect(term, paste(covariates, collapse = "|")))
+    filter(term != "(Intercept)", term != "Residuals")
+  
+  if (!is.null(covariates) & length(covariates) > 0) df <- filter(df, !str_detect(term, paste0(covariates, collapse = "|")))
+  
 } else {
+  
+  factors <- c(grouping_variable1, grouping_variable2, covariates)
+  mod = as.formula(paste("value ~", paste(factors, collapse="+")))
   
   D <- malpha %>%
     group_by(metric) %>%
-    do(tidy(lm(value ~ .data[[grouping_variable2]] + .data[[grouping_variable1]] + .data[[covariates]], data = .))) %>%
-    filter(term != "(Intercept)", term != "Residuals") |>
-    filter(!str_detect(term, paste0(covariates, collapse = "|")))
+    do(tidy(lm(mod, data = .))) %>%
+    # do(tidy(lm(value ~ .data[[grouping_variable2]] + .data[[grouping_variable1]] + .data[[covariates]], data = .))) %>%
+    filter(term != "(Intercept)", term != "Residuals") 
+  
+  if (!is.null(covariates) & length(covariates) > 0) D <- filter(D, !str_detect(term, paste0(covariates, collapse = "|")))
   
   df <- malpha %>%
     group_by(metric) %>%
-    do(tidy(anova(lm(value ~ .data[[grouping_variable2]] + .data[[grouping_variable1]] + .data[[covariates]], data = .)))) %>%
-    filter(term != "(Intercept)", term != "Residuals") |>
-    filter(!str_detect(term, paste(covariates, collapse = "|")))
+    do(tidy(anova(lm(mod, data = .)))) %>%
+    # do(tidy(anova(lm(value ~ .data[[grouping_variable2]] + .data[[grouping_variable1]] + .data[[covariates]], data = .)))) %>%
+    filter(term != "(Intercept)", term != "Residuals")
+  
+  if (!is.null(covariates) & length(covariates) > 0) df <- filter(df, !str_detect(term, paste0(covariates, collapse = "|")))
 }
 
 
@@ -194,12 +204,12 @@ if (grouping_variable2 != "") {
   
   alpha_stats <- malpha %>% 
     group_by(metric, .data[[grouping_variable2]], .data[[grouping_variable1]]) %>%
-    summarise(avg = round(mean(value),3), std = round(sd(value),3))
+    summarise(avg = round(mean(value, na.rm = TRUE),3), std = round(sd(value, na.rm = TRUE),3))
 } else {
   
   alpha_stats <- malpha %>% 
     group_by(metric, .data[[grouping_variable1]]) %>%
-    summarise(avg = round(mean(value),3), std = round(sd(value),3))
+    summarise(avg = round(mean(value, na.rm = TRUE),3), std = round(sd(value, na.rm = TRUE),3))
 }
 
 alpha_stats[alpha_stats$avg > 10,"avg"] <- round(alpha_stats$avg[alpha_stats$avg > 10],1)
@@ -218,7 +228,7 @@ if (grouping_variable2 != "") {
   
   avg_timepoint <- malpha |>
     group_by(metric, timepoint) |>
-    summarise(avg = mean(value)) |>
+    summarise(avg = mean(value, na.rm = TRUE)) |>
     rename(term = timepoint)
 
   temp <- avg_timepoint |>
@@ -233,7 +243,7 @@ if (grouping_variable2 != "") {
 
 avg_treatment <- malpha |>
   group_by(metric, treatment) |>
-  summarise(avg = mean(value)) |>
+  summarise(avg = mean(value, na.rm = TRUE)) |>
   rename(term = treatment)
 
 temp <- avg_treatment |>
@@ -256,7 +266,9 @@ if (grouping_variable2 != "") {
   diff <- diff_treatment
 }
 
+
 D$term  <- gsub("\\.data.*\\]","",D$term)
+D$term  <- gsub("treatment|timepoint","",D$term)
 
 D <- D |>
   left_join(avg, by = c("metric" = "metric", "term" = "term"))
@@ -309,9 +321,10 @@ w0 <- w0 + theme(axis.text.x = element_text(angle=0, size = 9),
 w0
 
 
-D$term <- gsub("Treated","TG",D$term)
+# D$term <- gsub("Treated","TG",D$term)
+D$term2 = df$term
 
-w <- ggplot(D, aes(x=term, y=p.value))
+w <- ggplot(D, aes(x=term2, y=p.value))
 w <- w + geom_jitter(aes(colour=metric), size = 2, width = 0.2)
 w <- w + gghighlight(p.value < 0.05, label_key = metric, label_params = list(size = 4, label.size = 0.5, max.overlaps = 10))
 w <- w + geom_hline(yintercept=0.05, linetype="dashed", color = "red", alpha = 0.3)
@@ -322,7 +335,7 @@ w <- w + theme(axis.text.x = element_text(angle=0, size = 9),
 w
 
 
-w1 <- ggplot(D, aes(x = term, y = p.value, label = metric))
+w1 <- ggplot(D, aes(x = term2, y = p.value, label = metric))
 w1 <- w1 + geom_jitter(aes(group=metric, colour=Color), size = 2, width = 0.2)
 w1 <- w1 + geom_hline(yintercept=0.05, linetype="dashed", color = "red", alpha = 0.3)
 w1 <- w1 + scale_color_identity() + theme_bw()
@@ -345,9 +358,13 @@ dir.create(file.path(outdir, "figures"), showWarnings = FALSE)
 
 fname = paste("alpha_significance_one_", config$suffix, ".png", sep="")
 fname = file.path(outdir, "figures", fname)
-ggsave(filename = fname, plot = w, device = "png", width = 9, height = 7)
+ggsave(filename = fname, plot = w0, device = "png", width = 9, height = 7)
 
 fname = paste("alpha_significance_two_", config$suffix, ".png", sep="")
+fname = file.path(outdir, "figures", fname)
+ggsave(filename = fname, plot = w, device = "png", width = 9, height = 7)
+
+fname = paste("alpha_significance_three_", config$suffix, ".png", sep="")
 fname = file.path(outdir, "figures", fname)
 ggsave(filename = fname, plot = w1, device = "png", width = 9, height = 7)
 
@@ -365,11 +382,14 @@ writeLines(" - making pairwise contrasts between treatments")
   
 if("timepoint" %in% names(malpha)) {
 
+  factors <- c(grouping_variable1, covariates)
+  mod = as.formula(paste("value ~", paste(factors, collapse="+")))
+  
   contrasts <- malpha |>
   # nest(data = -c(timepoint,metric)) |>
     nest(data = -c(metric, timepoint)) |>
     mutate(
-      fit = map(data, ~ aov(value ~ treatment + .x[[covariates]], data = .x)),
+      fit = map(data, ~ aov(mod, data = .x)),
       hsd = map(fit, ~ TukeyHSD(.x, which = "treatment")),
       tidied = map(hsd, tidy)
     ) |>
@@ -377,11 +397,13 @@ if("timepoint" %in% names(malpha)) {
     select(-c(data,fit,hsd))
 } else {
   
+  factors <- c(grouping_variable1, covariates)
+  mod = as.formula(paste("value ~", paste(factors, collapse="+")))
+  
   contrasts <- malpha |>
-    # nest(data = -c(timepoint,metric)) |>
     nest(data = -c(metric)) |>
     mutate(
-      fit = map(data, ~ aov(value ~ treatment + .x[[covariates]], data = .x)),
+      fit = map(data, ~ aov(mod, data = .x)),
       hsd = map(fit, ~ TukeyHSD(.x, which = "treatment")),
       tidied = map(hsd, tidy)
     ) |>
