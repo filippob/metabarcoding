@@ -44,19 +44,20 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/moroni/lettiera",
+    prjfolder = "Documents/Suikerbiet/its_2025",
     analysis_folder = "Analysis",
-    fname = "filtered_otu/otu_table_filtered.biom",
+    fname = "dati/its1f-its2/filtered_features/feature-table.biom",
     conf_file = "Config/mapping_file.csv",
-    suffix = "bedding_wk2",
+    suffix = "its1f-its2",
+    prefix = "", ## for sample IDs, if any
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 10,
-    min_sample = 2,
+    min_tot_n = 20,
+    min_sample = 3,
     project = "", ## USE ONLY FOR SUBSETTING !!
-    treatment_column = "treatment",
-    sample_column = "sample_id",
-    subset_variable = "week",
-    subset_group = "WEEK2", ## subset data by sample variable (e.g. experiment, group, sex, etc.),
+    treatment_column = "Type",
+    sample_column = "SampleID",
+    subset_variable = "",
+    subset_group = "", ## subset data by sample variable (e.g. experiment, group, sex, etc.),
     force_overwrite = FALSE
   ))
 }
@@ -67,6 +68,7 @@ prjfolder = file.path(HOME, config$prjfolder)
 analysis_folder = file.path(prjfolder,config$analysis_folder)
 fname = config$fname
 
+dir.create(analysis_folder, showWarnings = FALSE)
 config_fname = file.path(analysis_folder, "import_phyloseq.config.RData")
 save(config, file = config_fname)
 
@@ -77,34 +79,36 @@ source(file.path(repo, "support_functions/phyloseq_transform.R")) ## from: https
 
 writeLines(" - reading the filtered (OTU-wise) biom file into phyloseq")
 ## both the OTU table and the taxonomic classification are available from the biom file (qiime 1.9)
-biom_otu_tax <- phyloseq::import_biom(BIOMfilename = file.path(analysis_folder,fname))
+biom_otu_tax <- phyloseq::import_biom(BIOMfilename = file.path(prjfolder,fname))
 # otu = otu_table(biom_otu_tax, taxa_are_rows = TRUE)
-# ncol(otu)
+# nrow(otu)
 
 writeLines(" - removing samples with too few total counts")
 biom_otu_tax = prune_samples(sample_sums(biom_otu_tax) >= config$min_tot_n, biom_otu_tax)
 
 otu = otu_table(biom_otu_tax, taxa_are_rows = TRUE)
 taxa = tax_table(biom_otu_tax)
+taxa <- gsub("^.*__","",taxa) ## to remove taxanomies with format k__* p__* etc. if any
 
 print(paste("N. of OTUs read from biom file is:", nrow(otu)))
 print(paste("N .of samples retained after filtering is:", ncol(otu)))
 
-colnames(otu) <- paste("sample-",colnames(otu),sep="")
+if (config$prefix != "")  colnames(otu) <- paste(config$prefix,colnames(otu),sep="-")
 print(head(otu))
 
 writeLines(" - change the names of taxonomic levels to Kngdom, Class etc.")
-colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus") #if number does not fit, add "" as blank spaces to solve the problem
+colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus", "Species") #if number does not fit, add "" as blank spaces to solve the problem
 # colnames(taxa) <- c("Kingdom","Phylum","Class","Order","Family","Genus") #from RDP
 print(head(taxa))
 
 ## metadata
 writeLines(" - reading the metadata")
-metadata = fread(file.path(prjfolder, config$conf_file))
+metadata = fread(file.path(prjfolder, config$conf_file), header = TRUE)
+
 #metadata = metadata |> rename(`sample-id` = id) |> relocate(`sample-id`)
 names(metadata)[1] <- "sample-id"
 if (config$treatment_column != "treatment") metadata <- rename(metadata, 'treatment' = !!config$treatment_column)
-metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") 
+if (config$prefix != "") metadata$`sample-id` = paste(config$prefix, metadata$`sample-id`, sep="-") 
 if(is.numeric(metadata$`sample-id`)) metadata$`sample-id` = paste("sample",metadata$`sample-id`,sep="-") # in case your sample-id are not only numeric, remove or comment if(is.numeric(metadata$`sample-id`))
 metadata <- as.data.frame(metadata)
 row.names(metadata) <- metadata$`sample-id`
@@ -115,6 +119,7 @@ metadata$treatment = as.factor(metadata$treatment)
 ## read into phyloseq
 writeLines(" - add metadata to the phyloseq object")
 samples = sample_data(metadata)
+
 otu_tax_sample = phyloseq(otu,taxa,samples)
 sample_data(otu_tax_sample) |> head()
 sample_data(otu_tax_sample) |> nrow()
