@@ -40,6 +40,7 @@ if (length(args) > 1) {
     treatment_column = "treatment",
     factor_cov = "timepoint",
     sample_id = "", ## from metadata
+    baseline = FALSE,
     force_overwrite = FALSE
   ))
 }
@@ -122,5 +123,106 @@ for (k in steps) {
   # class(plot_obj)
   ggsave(fname, plot = plot_obj, width = 6, height = n*0.5, dpi = 250, bg = "white")
 }
+
+
+#######################
+## correct for baseline
+#######################
+
+if (config$baseline) {
+  
+  ## getting base level
+  levels = select(metadata, !!config$factor_cov) |> pull() |> unique()
+  base_level = sort(levels)[1]
+  
+  ## getting baseline data
+  base_samples = metadata |>
+    filter(.data[[config$factor_cov]] == base_level) |>
+    row.names()
+  
+  otu_ids <- rownames(counts)
+  
+  base_df = counts |>
+    as_tibble() |>
+    select(all_of(base_samples)) |>
+    mutate(OTUID = otu_ids)
+  
+  ## calculate average counts/values at baseline for each omic marker
+  avgs <- base_df |>
+    gather(key = "sample", value = "counts", -OTUID) |>
+    group_by(OTUID) |>
+    summarise(avg = mean(counts))
+  
+  vec <- (!rownames(metadata) %in% base_samples)
+  exp_metadata <- metadata[vec,]
+  
+  ## select data NOT at baseline
+  exp_df = counts |>
+    as_tibble() |>
+    select(!all_of(base_samples)) |>
+    as.matrix()
+  
+  ## calculate differences from baseline averages
+  exp_df = sweep(exp_df, 1, avgs$avg, FUN = "-")
+  
+  steps = levels[-1] ## all other timepoints except baseline
+  for (k in steps) {
+    
+    print(k)
+    exp_metadata <- filter(metadata, .data[[config$factor_cov]] == k)
+    exp_metadata$sample = rownames(exp_metadata)
+    
+    ids = row.names(exp_metadata)
+    temp = exp_df |>
+      as_tibble() |>
+      select(all_of(ids)) |>
+      as.matrix()
+    
+    rownames(temp) <- rownames(counts)
+    print(paste("N. of OTUs is:", nrow(temp)))
+    
+    ## Create a SummarizedExperiment object
+    exp_data = SummarizedExperiment(assays = list(counts = temp), colData = exp_metadata)
+    tn <- get_terminal_nodes(rownames(exp_data))
+    exp_data_n <- exp_data[tn,]
+    exp_data_ra <- relativeAb(exp_data)
+    
+    print(" running LefSe model")
+    res <- lefser(relab = exp_data_ra, classCol = "treatment")
+    
+    if(nrow(res) > 0) {
+      
+      genus = taxons |>
+        as_tibble() |>
+        pull(Genus)
+      
+      otu_ids = row.names(taxons)
+      res$features = genus[match(res$features,otu_ids)]
+      print(head(res))
+      
+      fname = paste("bl_lefse_", k, ".csv", sep="")
+      path = file.path(outdir, "lefse")
+      dir.create(path, showWarnings = FALSE)
+      fname = file.path(path, fname)
+      write.csv(x = na.omit(res), file = fname)
+      
+      fname = paste("bl_lefse_", k, ".png", sep="")
+      fname = file.path(path, fname)
+      
+      n = nrow(na.omit(res))
+      
+      print(paste("saving image to file", fname))
+      plot_obj <- lefserPlot(na.omit(res))
+      # class(plot_obj)
+      ggsave(fname, plot = plot_obj, width = 6, height = n*0.5, dpi = 250, bg = "white")
+    }
+
+  }
+  
+}
+
+########################
+########################
+
 
 print("DONE!!")
