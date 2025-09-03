@@ -1,5 +1,11 @@
 #!/bin/sh
 
+## script that generates the OTU/ASV table
+## you can choose which (OTU or ASV) by
+## modifying the code below 
+
+set -x
+
 ## setting the enviornmnent
 currpath=$(pwd)
 project_home="$HOME/bontempo_pigs_rectum"

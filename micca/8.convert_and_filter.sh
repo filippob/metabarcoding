@@ -9,6 +9,8 @@
 ## (to continue with down stream calculations of alpha and beta diversity and 
 ## and for the comparison of specific taxa)
 
+set -x
+
 ## setting the enviornmnent
 currpath=$(pwd)
 project_home="$HOME/bontempo_pigs_caecum_gastroherb"

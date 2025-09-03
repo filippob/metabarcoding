@@ -1,5 +1,10 @@
 #!/bin/sh
 
+## script that classifies the OTU/ASV based on reference databases
+## choose the database in the parameters below
+
+set -x
+
 ## setting the enviornmnent
 currpath=$(pwd)
 project_home="$HOME/delower"
