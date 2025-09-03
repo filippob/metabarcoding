@@ -1,5 +1,12 @@
 #!/bin/sh
 
+## script that joins pair-end reads
+## you can tune parameters in the code below
+## e.g. minimum overlap length (bps, default = 32) and
+## max n. of allowed mismatches in the overlap region (default = 8)
+
+set -x
+
 ## setting the enviornmnent
 currpath=$(pwd)
 project_home="$HOME/bontempo_pigs_caecum_gastroherb"

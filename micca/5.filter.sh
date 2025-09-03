@@ -1,3 +1,11 @@
+#!/bin/sh
+
+## script that filters assembled reads based on quality
+## you can tune parameters in the code below
+## e.g. discard reads with more than the specified number of allowed Ns (uncalled bases) 
+## or discard sequences with more than the specified expected error rate % (e.g. <=1% is less or equal than one error per 100 bases)
+
+set -x
 
 ## setting the environment
 currpath=$(pwd)
