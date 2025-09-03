@@ -1,5 +1,11 @@
 #!/bin/sh
 
+## script that trims reads based on quality criteria
+## you can tune the trimming parameter directly in the code below
+## i) type of quality score; ii) quality threshold (depends on the quality score that has been selected)
+
+set -x
+
 ## setting the enviornmnent
 currpath=$(pwd)
 project_home="$HOME/bontempo_pigs_caecum_gastroherb"

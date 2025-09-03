@@ -1,3 +1,11 @@
+#!/bin/sh
+
+## script that removes primers and adapaters
+## follows the ampliseq structure described in the link below: 
+## https://bioinformateachers.github.io/bioinformatics/microbiome/2022/06/11/quick-ampliseq.html
+
+set -x
+
 ## setting the enviornmnent
 currpath=$(pwd)
 project_home="$HOME/bontempo_pigs_rectum"
