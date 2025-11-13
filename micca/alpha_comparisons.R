@@ -32,17 +32,17 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/Suikerbiet/its_2025",
+    prjfolder = "Documents/cremonesi/sicurprolat",
     analysis_folder = "Analysis",
     conf_file = "Config/mapping_file.csv",
-    suffix = "its1f-its2",
+    suffix = "bufala",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
-    min_tot_n = 10,
-    min_sample = 2,
+    min_tot_n = 20,
+    min_sample = 3,
     project = "", ##! use only for subsetting
-    treatment_column = "Type",
+    treatment_column = "place",
     sample_column = "sample-id",
-    grouping_variable2 = "timepoint",
+    grouping_variable2 = "season",
     grouping_variable1 = "treatment",
     covariates = "", ## string with covariates separated by a comme
     base_treatment = 1, ## reference level within timepoint (e.g. control)
@@ -85,8 +85,8 @@ if (config$covariates != "") { covariates = unlist(strsplit(config$covariates, s
 print(paste("The following covariates are used:", covariates))
 ## select(metadata, c(all_of(covariates))) ## also the following syntax is possible: select(metadata, c(!!covariates))
 
-if("timepoint" %in% names(metadata)) {
-  metadata = metadata |> select(c(`sample-id`, treatment, timepoint, all_of(covariates))) |> mutate(treatment = as.factor(treatment))
+if(grouping_variable2 != "") {
+  metadata = metadata |> select(c(`sample-id`, treatment, all_of(grouping_variable2), all_of(covariates))) |> mutate(treatment = as.factor(treatment))
 } else metadata = metadata |> select(c(`sample-id`, treatment, all_of(covariates))) |> mutate(treatment = as.factor(treatment))
 
 
@@ -122,7 +122,7 @@ if (grouping_variable2 != "") {
 } else p <- p + facet_wrap(~metric, scales = "free")
 if ((!is.null(covariates) & length(covariates) > 0) & grouping_variable2 == "") {
   p <- p + facet_grid(metric~.data[[covariates]], scales = "free")
-} else p <- p + facet_wrap(~metric, scales = "free")
+}
 p <- p + theme(axis.text.x = element_text(angle = 0))
 p
 
@@ -135,7 +135,7 @@ if (grouping_variable2 != "") {
   
 q <- ggplot(malpha, aes(y=.data[[grouping_variable2]], x=value, fill=.data[[grouping_variable1]])) +
   geom_density_ridges(scale=0.9, alpha = 0.5) +
-  theme(legend.position="none") + facet_grid(.data[[grouping_variable2]]~metric, scales = "free")
+  theme(legend.position="none") + facet_grid(metric~.data[[grouping_variable2]], scales = "free")
 # q
 } else {
   
@@ -152,7 +152,11 @@ ggsave(filename = fname, plot = q, device = "png", width = 5, height = 7)
 
 ### Linear model
 base_treatment = levels(as.factor(alpha$treatment))[config$base_treatment]
-base_timepoint = levels(as.factor(alpha$timepoint))[config$base_timepoint]
+
+temp = alpha |>
+  select(.data[[grouping_variable2]]) |>
+  pull()
+base_timepoint = levels(as.factor(temp))[config$base_timepoint]
 
 treats = unique(malpha$treatment)
 treats = c(base_treatment, as.character(treats[treats != base_treatment]))
@@ -176,7 +180,7 @@ if (config$nfactors == 1) {
   
 } else {
   
-  factors <- c(grouping_variable1, grouping_variable2, covariates)
+  factors <- unique(c(grouping_variable1, grouping_variable2, covariates))
   mod = as.formula(paste("value ~", paste(factors, collapse="+")))
   
   D <- malpha %>%
@@ -227,9 +231,9 @@ fwrite(dd, file = fname)
 if (grouping_variable2 != "") {
   
   avg_timepoint <- malpha |>
-    group_by(metric, timepoint) |>
-    summarise(avg = mean(value, na.rm = TRUE)) |>
-    rename(term = timepoint)
+    group_by(metric, .data[[grouping_variable2]]) |>
+    summarise(avg = mean(value, na.rm = TRUE), .groups = "drop") |>
+    rename(term = all_of(grouping_variable2))
 
   temp <- avg_timepoint |>
     rename(baseline = avg) |>
@@ -268,7 +272,8 @@ if (grouping_variable2 != "") {
 
 
 D$term  <- gsub("\\.data.*\\]","",D$term)
-D$term  <- gsub("treatment|timepoint","",D$term)
+D$term = gsub(grouping_variable1, "", D$term)
+D$term = gsub(grouping_variable2, "", D$term)
 
 D <- D |>
   left_join(avg, by = c("metric" = "metric", "term" = "term"))
@@ -312,7 +317,7 @@ df$term = gsub("\"","",df$term)
 
 w0 <- ggplot(df, aes(x=term, y=p.value, colour = metric))
 w0 <- w0 + geom_point(position=position_dodge(width = 0.5)) 
-w0 <- w0 + gghighlight(p.value < 0.10, label_key = metric, label_params = list(size = 4, label.size = 0.5, max.overlaps = 2)) 
+w0 <- w0 + gghighlight(p.value < 0.05, label_key = metric, label_params = list(size = 4, label.size = 0.5, max.overlaps = 3)) 
 w0 <- w0 + geom_hline(yintercept=0.05, linetype="dashed", color = "red", alpha = 0.3)
 w0 <- w0 + xlab("term") + coord_cartesian(ylim = c(-0.01,1))
 w0 <- w0 + theme(axis.text.x = element_text(angle=0, size = 9),
@@ -322,9 +327,8 @@ w0
 
 
 # D$term <- gsub("Treated","TG",D$term)
-D$term2 = df$term
 
-w <- ggplot(D, aes(x=term2, y=p.value))
+w <- ggplot(df, aes(x=term, y=p.value))
 w <- w + geom_jitter(aes(colour=metric), size = 2, width = 0.2)
 w <- w + gghighlight(p.value < 0.05, label_key = metric, label_params = list(size = 4, label.size = 0.5, max.overlaps = 10))
 w <- w + geom_hline(yintercept=0.05, linetype="dashed", color = "red", alpha = 0.3)
@@ -335,7 +339,7 @@ w <- w + theme(axis.text.x = element_text(angle=0, size = 9),
 w
 
 
-w1 <- ggplot(D, aes(x = term2, y = p.value, label = metric))
+w1 <- ggplot(D, aes(x = term, y = p.value, label = metric))
 w1 <- w1 + geom_jitter(aes(group=metric, colour=Color), size = 2, width = 0.2)
 w1 <- w1 + geom_hline(yintercept=0.05, linetype="dashed", color = "red", alpha = 0.3)
 w1 <- w1 + scale_color_identity() + theme_bw()
@@ -464,3 +468,4 @@ fname = file.path(outdir, fname)
 save(to_save, file = fname)
 
 print("DONE!")
+
