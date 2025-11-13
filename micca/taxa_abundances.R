@@ -38,22 +38,22 @@ if (length(args) >= 1) {
     #base_folder = '~/Documents/SMARTER/Analysis/hrr/',
     #genotypes = "Analysis/hrr/goat_thin.ped",
     repo = "Documents/cremonesi/metabarcoding",
-    prjfolder = "Documents/Suikerbiet/its_2025",
+    prjfolder = "Documents/cremonesi/sicurprolat",
     analysis_folder = "Analysis",
     otu_norm_file = "otu_norm_CSS.csv",
     conf_file = "Config/mapping_file.csv",
-    suffix = "its1f-its2",
+    suffix = "bruna",
     nfactors = 2, ## n. of design variables (e.g. treatment and timpoint --> nfactors = 2)
     min_tot_n = 15,
     min_sample = 3,
     project = "",
     sample_column = "sample-id",
-    sample_prefix = "",
-    treatment_column = "Type",
-    grouping_variable2 = "timepoint",
+    sample_prefix = "sample-",
+    treatment_column = "season",
+    grouping_variable2 = "place",
     grouping_variable1 = "treatment",
-    exp_levels = paste(c("Resistant", "Susceptible"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !! Not treated,Treated
-    sig_threshold = 0.01,
+    exp_levels = paste(c("Freddo", "Caldo"), collapse = ","), ## !! THE FIRST LEVEL IS THE BENCHMARK !! Not treated,Treated
+    sig_threshold = 0.05,
     force_overwrite = FALSE
   ))
 }
@@ -80,8 +80,8 @@ metadata <- metadata |> rename(`sample-id` = !!config$sample_column, treatment =
 if (config$project != "") metadata <- filter(metadata, project == !!config$project)
 
 metadata <- mutate(metadata, `sample-id` = as.character(`sample-id`))
-if("timepoint" %in% names(metadata)) {
-  metadata = metadata |> select(c(`sample-id`, treatment, timepoint)) |> mutate(treatment = as.factor(treatment))
+if(config$grouping_variable2 %in% names(metadata)) {
+  metadata = metadata |> select(c(`sample-id`, treatment, all_of(config$grouping_variable2))) |> mutate(treatment = as.factor(treatment))
 } else metadata = metadata |> select(c(`sample-id`, treatment, !!config$grouping_variable2))
 
 ## convert to factors
@@ -103,21 +103,21 @@ M <- cbind.data.frame("Phylum"=otus$Phylum, M)
 metadata$sample <- paste(config$sample_prefix, metadata$`sample-id`, sep = "")
 mO <- M %>% gather(key = "sample", value = "counts", -c("Phylum"))
 
-if("timepoint" %in% names(metadata)) {
-  temp = select(metadata, c(sample, treatment, timepoint))
+if(config$grouping_variable2 %in% names(metadata)) {
+  temp = select(metadata, c(sample, treatment, all_of(config$grouping_variable2)))
 } else temp = select(metadata, c(sample, treatment, !!config$grouping_variable2))
 
 mO <- mO %>% inner_join(temp, by = "sample")
 
-if("timepoint" %in% names(metadata)) {
+if(config$grouping_variable2 %in% names(metadata)) {
   
   D <- mO %>% 
-    group_by(treatment,timepoint,Phylum) %>% 
+    group_by(treatment, .data[[config$grouping_variable2]], Phylum) %>% 
     dplyr::summarise(avg = sum(counts))
   
-  D <- mO |> group_by(treatment, timepoint) |>
+  D <- mO |> group_by(treatment, .data[[config$grouping_variable2]]) |>
     mutate(tot = sum(counts)) |>
-    group_by(treatment,timepoint, Phylum) |>
+    group_by(treatment, .data[[config$grouping_variable2]], Phylum) |>
     summarise(avg = sum(counts)/unique(tot))
 } else {
   
@@ -143,12 +143,15 @@ phylums <- D |>
 
 D$Phylum <- factor(D$Phylum, levels = phylums$Phylum)
 
+var1 = config$grouping_variable1
+var2 = config$grouping_variable2
+
 p <- ggplot(D, aes(x=factor(1), y=avg, fill=Phylum)) + geom_bar(width=1,stat="identity", alpha = 0.8)
 p <- p + coord_polar(theta='y')
 if (config$grouping_variable2 != "") {
-  p <- p + facet_grid(timepoint~treatment)
+  p <- p + facet_grid(rows = vars(!!sym(var1)), cols = vars(!!sym(var2)))
 } else p <- p + facet_wrap(~treatment)
-p <- p + xlab("relative abundances") + ylab("") + labs(title = plot_title)
+p <- p + xlab("relative abundances") + ylab(NULL) + labs(title = plot_title)
 p <- p + scale_fill_manual(values = my_palette)
 p <- p + theme(text = element_text(size=12),
                axis.text.x = element_text(size=7),
@@ -185,10 +188,10 @@ temp <- temp %>% inner_join(select(metadata, -`sample-id`), by = c("sample" = "s
 
 if (config$grouping_variable2 != "") {
   temp <- temp |> 
-    group_by(sample, timepoint, treatment, level, taxon) |> 
+    group_by(sample, .data[[config$grouping_variable2]], treatment, level, taxon) |> 
     summarise(tot_sample = sum(counts)) |> 
     mutate(tot = sum(tot_sample), abundance = tot_sample/tot) |>
-    group_by(timepoint, treatment, level, taxon) |>
+    group_by(.data[[config$grouping_variable2]], treatment, level, taxon) |>
     summarise(avg_abund = mean(abundance), std = sd(abundance))
   
   
@@ -197,11 +200,12 @@ if (config$grouping_variable2 != "") {
   temp <- temp |>
     mutate(taxon = reorder_within(taxon, avg_abund, level))
   
-  for (k in unique(temp$timepoint)) {
+  steps = pull(temp, .data[[config$grouping_variable2]])
+  for (k in unique(steps)) {
     
     print(paste("processing stratifying variable",k))
     
-    p <- ggplot(filter(filter(temp, timepoint == k), avg_abund > 0.001), aes(x = taxon, y = avg_abund)) + geom_bar(aes(fill=taxon), stat = "identity")
+    p <- ggplot(filter(filter(temp, .data[[config$grouping_variable2]] == k), avg_abund > 0.001), aes(x = taxon, y = avg_abund)) + geom_bar(aes(fill=taxon), stat = "identity")
     p <- p + coord_flip() + facet_grid(level~treatment, scales = "free", space = "free")
     p <- p + guides(fill="none") + scale_x_discrete(labels = function(x) str_replace(x, "_.*$", ""))
     p <- p + theme(axis.text.y = element_text(size = 4), axis.text.x = element_text(size = 5), axis.title.x = NULL)
@@ -222,7 +226,7 @@ mO <- otus |>
   gather(key = "sample", value = "counts", -c(Genus))
 
 if (config$grouping_variable2 != "") { 
-  temp = select(metadata, c(sample, treatment, timepoint))
+  temp = select(metadata, c(sample, treatment, all_of(config$grouping_variable2)))
 } else temp = select(metadata, c(sample, treatment))
 mO <- mO %>% inner_join(temp, by = c("sample" = "sample"))
 mO$treatment = factor(mO$treatment, levels = exp_levels)
@@ -230,13 +234,13 @@ mO$treatment = factor(mO$treatment, levels = exp_levels)
 if (config$grouping_variable2 != "") { 
 
   temp <- mO |>
-    group_by(Genus, treatment, timepoint) |>
+    group_by(Genus, treatment, .data[[config$grouping_variable2]]) |>
     summarise(avg = mean(counts))
   
   dd <- pivot_wider(temp, names_from = treatment, values_from = avg)
   
   genus_stats <- mO %>% 
-    group_by(Genus, treatment, timepoint) %>%
+    group_by(Genus, treatment, .data[[config$grouping_variable2]]) %>%
     summarise(avg = round(mean(counts),3), std = round(sd(counts),3), N=n())
 } else {
   
@@ -290,7 +294,7 @@ diff <- diff |>
 if (config$grouping_variable2 != "") { 
   contrasts <- diff |>
     select(-all_of(exp_levels)) |>
-    gather(key = "treatment", value = "difference", -c(Genus,timepoint))
+    gather(key = "treatment", value = "difference", -c(Genus, .data[[config$grouping_variable2]]))
 } else {
   contrasts <- diff |>
     select(-all_of(exp_levels)) |>
@@ -298,10 +302,10 @@ if (config$grouping_variable2 != "") {
 }
 
 
-contrasts <- contrasts |> inner_join(std, by = c("Genus", "timepoint")) |>
+contrasts <- contrasts |> inner_join(std, by = c("Genus", config$grouping_variable2)) |>
   rename_with(~str_c("std_", .), .cols = all_of(exp_levels))
   
- contrasts <- contrasts |> inner_join(sample_size, by = c("Genus", "timepoint")) |>
+ contrasts <- contrasts |> inner_join(sample_size, by = c("Genus", config$grouping_variable2)) |>
    rename_with(~str_c("n_", .), .cols = all_of(exp_levels))
   # rename(n_cg = `Not treated`, n_tg = Treated)
 
@@ -315,7 +319,7 @@ contrasts <- contrasts |>
                 .names = "ratio_{.col}")) |>
   rowwise() |>
   mutate(std_err = sum(c_across(starts_with("ratio")))) |>
-  select(Genus, timepoint, treatment, difference, starts_with("std"))
+  select(Genus, .data[[config$grouping_variable2]], treatment, difference, starts_with("std"))
 
 to_save[["relabund_for_lm"]] = mO
 to_save[["genus_stats"]] = genus_stats
@@ -368,14 +372,16 @@ if (config$grouping_variable2 != "") {
     spread(key = .data[[config$grouping_variable1]], value = avg)
 }
 
-if (config$grouping_variable2 != "") { 
+if (config$grouping_variable2 != "") {
+  
+  left_col <- c("Genus", config$grouping_variable2, "treatment")
+  right_col <- c("Genus", config$grouping_variable2, "term")
   genus_stats <- genus_stats |>
-    inner_join(temp, by = c("Genus" = "Genus","timepoint"="timepoint", "treatment"="term"))
+    inner_join(temp, by = setNames(right_col, left_col))
 } else {
   genus_stats <- genus_stats |>
     inner_join(temp, by = c("Genus" = "Genus", "treatment"="term"))
 }
-
 
 fname = paste("significant_otus_abundance_", config$suffix, ".csv", sep="")
 fname = file.path(outdir, "tables", fname)
