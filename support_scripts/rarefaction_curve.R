@@ -25,7 +25,7 @@ metadata = fread(fname)
 fname = file.path(basefolder, outputfile)
 
 png(fname, width = 1200, height = 900, res = 250)
-rarecurve(t(otu), step=100, col = metadata$MISEQ, lwd=2, ylab="ASVs", label=FALSE)
+rarecurve(t(otu), step=100, col = metadata$MISEQ, lwd=2, xlab = "N. of sequences", ylab="ASVs", label=FALSE)
 # and adding a vertical line at the fewest seqs in any sample
 abline(v=(min(rowSums(t(otu)))))
 dev.off()
