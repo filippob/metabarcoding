@@ -69,3 +69,5 @@ case "$dbpath" in
         ;;
 esac
 
+echo "DONE!!"
+
